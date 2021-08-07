@@ -1,7 +1,7 @@
 ---
-title: "map"
+title: "map_wa"
 author: "UWCHR"
-date: "12/29/2020"
+date: "8/06/2021"
 output: html_document
 ---
 
@@ -152,7 +152,7 @@ p2
 
 ```
 
-```{r map_counties, echo=TRUE, warning=FALSE, message=FALSE}
+```{r map_counties_total, echo=TRUE, warning=FALSE, message=FALSE}
 
 data <- i213 %>% 
   group_by(county, state) %>% 
@@ -206,7 +206,7 @@ m2 + theme(legend.position = "none") + scale_fill_manual(values=c("#b7a57a"))
 
 ```
 
-```{r map_counties, echo=TRUE}
+```{r map_counties_per_capita, echo=TRUE, warning=FALSE}
 
 county_pop <- read.delim(here::here('map', 'input', 'county-pop.csv'), sep=',')
 
