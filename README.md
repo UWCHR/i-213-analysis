@@ -4,7 +4,7 @@ Public analysis of non-sensitive scraped content from ICE/CBP I-213 forms obtain
 
 ## Data scraping
 
-PDF forms delivered by ICE/CBP are parsed, scraped, and cleaned in a separate repository developed by @HRDAG and maintained by UWCHR. Scraping and cleaning code available upon request.
+PDF forms delivered by ICE/CBP are parsed, scraped, and cleaned in a separate repository developed by the [Human Rights Data Analysis Group (HRDAG)](https://github.com/HRDAG/) and maintained by UWCHR. Scraping and cleaning code available upon request.
 
 ## Non-public data
 
