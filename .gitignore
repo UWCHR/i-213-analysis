@@ -1,0 +1,12 @@
+.creds
+.ipynb_checkpoints/
+.DS_Store
+.here
+.Rhistory
+.Rproj.user
+.RData
+*.Rproj
+.~lock*
+*.pdf
+*.html
+*.png
