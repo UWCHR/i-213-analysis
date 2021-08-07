@@ -1,0 +1,428 @@
+---
+title: "map"
+author: "UWCHR"
+date: "12/29/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+pacman::p_load(tidyverse, lubridate, here, skimr, yaml, ggplot2, ggalt, ggsflabel,
+               sf, rnaturalearth, rnaturalearthdata, maps, tools, RColorBrewer
+	)
+
+inputfile <- here::here('map', 'input', 'uw-chr-i213-public.csv.gz')
+
+i213 <- read_delim(inputfile, delim = "|", 
+    col_types = cols(
+        .default                     = col_character(),
+        source                       = col_factor(),
+        sex                          = col_factor(),
+        year                         = col_double(),
+        month                        = col_double(),
+        day                          = col_double(),
+        hour                         = col_double(),
+        minute                       = col_double(),
+        age                          = col_double(),
+        accompanied_juvenile_flag    = col_double(),
+        unaccompanied_juvenile_flag  = col_double(),
+        custody_redetermination_flag = col_double())
+)
+
+i213 <- i213 %>% 
+  filter(source == 'ice',
+         state == 'WA',
+         year >= '2019')
+
+priority_counties <- read_yaml('../../shared/hand/priority_counties.yaml')
+
+priority_counties <- gsub(" County", "", priority_counties)
+priority_counties <- tolower(priority_counties)
+
+priority_plus <- append(priority_counties, 'whatcom')
+
+i213$date <- as.Date(i213$date)
+
+min_date <- min(i213$date, na.rm = TRUE)
+max_date <- max(i213$date, na.rm = TRUE)
+
+nrow(i213)
+
+```
+
+# Goal:
+
+- Map of I-213 values by lat/lon, county for WA state
+
+See: https://www.r-spatial.org/r/2018/10/25/ggplot2-sf-2.html
+
+```{r map_points, echo=TRUE}
+
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+states <- st_as_sf(map("state", crs = 4326, plot = FALSE, fill = TRUE))
+print(states)
+
+states <- cbind(states, st_coordinates(st_centroid(states)))
+states$ID <- toTitleCase(as.character(states$ID))
+
+wa <- states %>% 
+  filter(ID == 'Washington')
+
+counties <- st_as_sf(map("county", plot = FALSE, fill = TRUE))
+
+counties <- counties %>% 
+  separate(col = 'ID', into = c("state", "county"), sep = ",", remove = FALSE) %>% 
+  filter(state == 'washington')
+
+counties$area <- as.numeric(st_area(counties))
+
+sites <- i213 %>% select(lon, lat) %>% 
+  na.omit()
+
+sites <- st_as_sf(sites, coords = c("lon", "lat"),
+                   crs = 4326, agr = "constant")
+
+wa_coords <- coord_sf(xlim = c(-125, -116.5), ylim = c(45, 49.5), expand = FALSE, crs = 4326)
+
+# Something about st_transform function that gets called below isn't working consistently:
+# works fine in RStudio, but not via Makefile. See following bug report threads:
+# https://stackoverflow.com/questions/61286108/error-in-cpl-transformx-crs-aoi-pipeline-reverse-ogrcreatecoordinatetrans
+st_crs(wa) <- 4326
+st_crs(wa$geom) <- 4326
+st_crs(sites) <- 4326
+st_crs(sites$geometry) <- 4326
+
+ggplot(data = wa) +
+    geom_sf() +
+    geom_sf(data = wa, fill = NA) + 
+    geom_sf(data = counties, fill = NA) + 
+    geom_sf(data = sites, size = 2, shape = 23, fill = "red") +
+    wa_coords +
+    ggtitle('I-213 forms by "at_near" latitude/longitude')
+
+```
+
+```{r map_sites_magnitude, echo=TRUE, message=FALSE, warning=FALSE}
+
+data_at_near <- i213 %>% 
+  filter(year >= '2019') %>% 
+  group_by(at_near, lon, lat) %>% 
+  summarise(n = n()) %>% 
+  na.omit()
+
+data_at_near <- st_as_sf(data_at_near, coords = c("lon", "lat"),
+                  crs = 4326, agr = "constant")
+
+data_at_near$rank <- rank(data_at_near$n)
+
+p1 <- ggplot(data = wa) +
+    geom_sf() +
+    geom_sf(data = wa, fill = NA) +
+    geom_sf(data = counties, fill = NA) + 
+    geom_sf(data = data_at_near, aes(size=n), shape = 21, fill = "red", alpha=.5) +
+    wa_coords +
+    labs(x = NULL, y = NULL, 
+    title = "Count of I-213 apprehensions by `at_near` location",
+    subtitle = paste(min_date, max_date, sep = ' to '),
+    caption = "UW Center for Human Rights")
+
+p1
+
+p2 <- ggplot(data = wa) +
+    geom_sf() +
+    geom_sf(data = wa, fill = NA) +
+    geom_sf(data = counties, fill = NA) + 
+    geom_sf(data = data_at_near, aes(size=n), shape = 21, fill = "red", alpha=.5) +
+    geom_sf_label_repel(data = subset(data_at_near, rank > (nrow(data_at_near) - 5)),
+                        aes(label = paste(at_near, n, sep=': '),
+                            background = NA),
+                        force = 50,
+                        nudge_x = -.33,
+                        nudge_y = .33) +
+    wa_coords +
+    labs(x = NULL, y = NULL, 
+    title = "Count of I-213 apprehensions by `at_near` location",
+    subtitle = paste(min_date, max_date, sep = ' to '),
+    caption = "UW Center for Human Rights")
+
+p2
+
+```
+
+```{r map_counties, echo=TRUE, warning=FALSE, message=FALSE}
+
+data <- i213 %>% 
+  group_by(county, state) %>% 
+  summarise(n = n()) %>% 
+  na.omit()
+
+data$state <- data$state %>% 
+  str_replace_all(c("WA" = "washington", "OR" = "oregon", 'ID' = 'idaho', 'AK' = 'alaska'))
+
+data$county <- data$county %>% 
+  str_replace_all(c(" County" = "")) %>% 
+  tolower()
+
+data$ID <- paste(data$state, data$county, sep=',')
+
+counties <- left_join(counties, data, by=c("ID", "state", 'county'))
+
+study_counties <- counties %>% 
+  filter(county %in% priority_counties)
+
+m1 <- ggplot(data = wa) +
+    geom_sf() +
+    geom_sf(data = wa, fill = NA) + 
+    geom_sf(data = counties, aes(fill = n)) +
+    geom_sf_label_repel(data = study_counties, aes(label = str_to_title(county)), 
+                        nudge_x = -.33,
+                        nudge_y = .33,
+                        force = 75) +
+    scale_fill_viridis_c(trans = "sqrt", alpha = .4, na.value = gray(.9)) +
+    wa_coords +
+    labs(x = NULL, y = NULL, 
+       title = "Total I-213 apprehensions by county",
+       subtitle = paste(min_date, max_date, sep = ' to '),
+       caption = "UW Center for Human Rights")
+
+m1
+
+m2 <- ggplot(data = wa) +
+    geom_sf() +
+    geom_sf(data = wa, fill = NA) + 
+    geom_sf(data = counties, fill = NA) +
+    geom_sf(data = study_counties, aes(fill = 'priority')) +
+    geom_sf_label_repel(data = study_counties, aes(label = str_to_title(county), background = NA), force = 0) +
+    wa_coords +
+    labs(x = NULL, y = NULL, fill = NULL,
+       title = "Immigrant Rights Observatory priority counties",
+       caption = "UW Center for Human Rights") +
+    annotate("text", x = 4, y = 25, label = "Some text")
+
+m2 + theme(legend.position = "none") + scale_fill_manual(values=c("#b7a57a"))
+
+```
+
+```{r map_counties, echo=TRUE}
+
+county_pop <- read.delim(here::here('map', 'input', 'county-pop.csv'), sep=',')
+
+county_pop$name <- gsub(" county", "", county_pop$name)
+county_pop$name <- gsub(" city and borough", "", county_pop$name)
+county_pop$name <- gsub(" borough", "", county_pop$name)
+county_pop$name <- gsub(" municipality", "", county_pop$name)
+county_pop$name <- gsub(" census area", "", county_pop$name)
+county_pop$name <- str_trim(county_pop$name)
+
+# county_pop merge with counties
+
+county_pop <- county_pop %>% 
+  separate(., col=name, sep=',',
+           remove = FALSE,
+           into=c('county', 'state'))
+
+county_pop$state <- str_trim(county_pop$state)
+county_pop$county <- str_trim(county_pop$county)
+
+county_pop <- county_pop %>%
+  mutate(priority = county %in% priority_counties)
+
+county_pop <- county_pop %>%
+  mutate(priority_plus = county %in% priority_plus)
+
+# Checking estimated pop in priority counties
+wa_pop <- county_pop %>% 
+  filter(state == 'washington')
+
+wa_pop_total <- sum(wa_pop$estimate)
+
+wa_pop_prior <- wa_pop %>% 
+  filter(priority == TRUE)
+
+wa_pop_prior_plus <- wa_pop %>% 
+  filter(priority_plus == TRUE)
+
+wa_pop_prior <- sum(wa_pop_prior$estimate)
+wa_pop_prior_plus <- sum(wa_pop_prior_plus$estimate)
+
+prop_pop_prior <- wa_pop_prior / wa_pop_total
+wa_pop_prior_plus <- wa_pop_prior_plus / wa_pop_total
+
+# merge and calcuiate n forms per capita
+
+data <- merge(counties, county_pop, by=c('county', 'state'))
+
+data$i_213_per_capita <- data$n / data$estimate
+
+# Checking # of forms in priority counties
+forms_wa <- data %>%
+  filter(state == 'washington')
+
+forms_prior <- data %>% 
+  filter(priority == TRUE)
+
+forms_prior_plus <- data %>% 
+  filter(priority_plus == TRUE)
+
+wa_forms_prior <- sum(forms_prior$n) / sum(forms_wa$n)
+
+wa_forms_prior_plus <- sum(forms_prior_plus$n) / sum(forms_wa$n)
+
+total_forms_prior <- sum(forms_prior$n) / sum(data$n)
+
+ggplot(data = wa) +
+    geom_sf() +
+    geom_sf(data = wa, fill = NA) + 
+    geom_sf(data = data, aes(fill = i_213_per_capita)) +
+    scale_fill_viridis_c(trans = "sqrt", alpha = .4, na.value = gray(.9)) +
+    wa_coords +
+    geom_sf_label_repel(data = study_counties, aes(label = str_to_title(county), background = NA), force = 100) +
+    labs(x = NULL, y = NULL, 
+       title = "Per capita I-213 apprehensions by county",
+       subtitle = paste(min_date, max_date, sep = ' to '),
+       caption = "UW Center for Human Rights\n2018 population estimate via ACS")
+
+to_print <- data %>%
+  select(c('county', 'state', 'i_213_per_capita')) %>% 
+  arrange(desc(i_213_per_capita))
+
+st_geometry(to_print) <- NULL
+
+knitr::kable(to_print)
+
+```
+
+```{r map_location_code, echo=TRUE}
+
+loc_codes <- i213 %>% 
+  group_by(location_code) %>% 
+  summarize(n = n()) %>% 
+  arrange(desc(n)) %>% 
+  na.omit()
+
+top <- unlist(loc_codes[1:20, 'location_code'])
+
+sites <- i213 %>% select(lon, lat, location_code) %>% 
+  filter(location_code %in% top) %>%
+  na.omit()
+
+sites <- st_as_sf(sites, coords = c("lon", "lat"),
+                   crs = 4326, agr = "constant")
+
+sites <- cbind(sites, st_coordinates(sites))
+
+sites <- sites[sites$X < -110,]
+sites <- sites[sites$X > -130,]
+sites <- sites[sites$Y < 50,]
+sites <- sites[sites$Y > 43,]
+
+sites$office <- str_match(sites$location_code, "SEA|POO|BLW|SPW")
+sites <- sites %>% 
+  na.omit()
+
+# Something about st_transform function that gets called below isn't working consistently:
+# works fine in RStudio, but not via Makefile. See following bug report threads:
+# https://stackoverflow.com/questions/61286108/error-in-cpl-transformx-crs-aoi-pipeline-reverse-ogrcreatecoordinatetrans
+st_crs(states) <- 4326
+st_crs(states$geom) <- 4326
+st_crs(sites) <- 4326
+st_crs(sites$geometry) <- 4326
+
+m1 <- ggplot() +
+    geom_sf(data = world) +
+    geom_sf(data = states, fill = NA) + 
+    geom_point(data = sites, size = 2, shape = 23, aes(x = X, y = Y, fill = office)) +
+    geom_encircle(data = sites, aes(x = X, y = Y, group=office, col=office)) +
+    wa_coords +
+    ggtitle('I-213 forms by "at_near" latitude/longitude')
+
+m2 <- ggplot() +
+    geom_sf(data = world) +
+    geom_sf(data = states, fill = NA) + 
+    stat_density2d(data=sites, aes(x=X, y=Y, fill=..level.., alpha=..level..), geom="polygon") +
+    scale_fill_gradientn(colours=rev(brewer.pal(7, "Spectral"))) +
+    # geom_encircle(data = sites, aes(x = X, y = Y, group=office, col=office)) +
+    coord_sf(xlim = c(-126, -114), ylim = c(43, 50), expand = FALSE, crs = 4326) +
+    ggtitle('I-213 forms by "at_near" latitude/longitude')
+
+m3 <- ggplot() +
+    geom_sf(data = world) +
+    geom_sf(data = states, fill = NA) + 
+    geom_jitter(data = sites, size = 2, shape = 23, width=.25, height=.25, aes(x = X, y = Y, fill = location_code)) +
+    coord_sf(xlim = c(-126, -114), ylim = c(43, 50), expand = FALSE, crs = 4326) +
+    ggtitle('I-213 forms by approx. "at_near" latitude/longitude')
+
+m1
+
+m2
+
+m3
+
+```
+```{r map_method}
+
+i213$office <- str_match(i213$location_code, "SEA|POO|BLW|SPW")
+
+i213 <- i213 %>% 
+  mutate(method_location_apprehension = case_when(
+         str_detect(method_location_apprehension, "PB") ~ "PB",
+         str_detect(method_location_apprehension, "CFD") ~ "CFD",
+         str_detect(method_location_apprehension, "CST") ~ "CST",
+         str_detect(method_location_apprehension, "CLC") ~ "CLC",
+         str_detect(method_location_apprehension, "NCA") ~ "NCA",
+         str_detect(method_location_apprehension, "L ") ~ "L",
+         str_detect(method_location_apprehension, "LEA") ~ "OA/OTF/LEA",
+         str_detect(method_location_apprehension, "OA") ~ "OA/OTF/LEA",
+         str_detect(method_location_apprehension, "OTF") ~ "OA/OTF/LEA",
+         str_detect(method_location_apprehension, "TCB") ~ "TCB",
+         str_detect(method_location_apprehension, "ISP") ~ "ISP",
+         str_detect(method_location_apprehension, "O |0 ") ~ "O",
+         is.na(method_location_apprehension) ~ NA_character_,
+         TRUE ~ NA_character_))
+
+sites <- i213 %>% select(lon, lat, office, method_location_apprehension) %>% 
+  na.omit()
+
+sites <- st_as_sf(sites, coords = c("lon", "lat"),
+                   crs = 4326, agr = "constant")
+
+sites <- cbind(sites, st_coordinates(sites))
+
+# sites <- sites[sites$X < -110,]
+# sites <- sites[sites$X > -130,]
+# sites <- sites[sites$Y < 50,]
+# sites <- sites[sites$Y > 43,]
+
+# Something about st_transform function that gets called below isn't working consistently:
+# works fine in RStudio, but not via Makefile. See following bug report threads:
+# https://stackoverflow.com/questions/61286108/error-in-cpl-transformx-crs-aoi-pipeline-reverse-ogrcreatecoordinatetrans
+st_crs(states) <- 4326
+st_crs(states$geom) <- 4326
+st_crs(sites) <- 4326
+st_crs(sites$geometry) <- 4326
+
+m1 <- ggplot() +
+    geom_sf(data = world) +
+    geom_sf(data = states, fill = NA) + 
+    geom_jitter(data = sites, size = 2, shape = 23, width = .5, height = .5, aes(x = X, y = Y, fill = method_location_apprehension)) +
+    # geom_encircle(data = sites, aes(x = X, y = Y, group=method_location_apprehension, col=method_location_apprehension)) +
+    coord_sf(xlim = c(-126, -114), ylim = c(43, 50), expand = FALSE, crs = 4326) +
+    facet_wrap(~office)
+    ggtitle('I-213 forms by approx "at_near" latitude/longitude')
+
+m1
+
+m2 <- ggplot() +
+    geom_sf(data = world) +
+    geom_sf(data = states, fill = NA) + 
+    geom_jitter(data = sites, size = 2, shape = 23, width = .5, height = .5, aes(x = X, y = Y, fill = method_location_apprehension)) +
+    coord_sf(xlim = c(-126, -114), ylim = c(43, 50), expand = FALSE, crs = 4326) +
+    facet_wrap(~method_location_apprehension)
+    ggtitle('I-213 forms by approx "at_near" latitude/longitude')
+
+m2
+
+```
