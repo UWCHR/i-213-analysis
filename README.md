@@ -4,7 +4,7 @@ Public analysis of non-sensitive scraped content from ICE/CBP I-213 forms obtain
 
 ## Data scraping
 
-PDF forms delivered by ICE/CBP are parsed, scraped, and cleaned in a separate repository developed by HRDAG and maintained by UWCHR. Scraping and cleaning code available upon request.
+PDF forms delivered by ICE/CBP are parsed, scraped, and cleaned in a separate repository developed by @HRDAG and maintained by UWCHR. Scraping and cleaning code available upon request.
 
 ## Non-public data
 
@@ -12,7 +12,7 @@ Dataset in this repo consists of scraped I-213 forms, withholding descriptive "n
 
 ## `mentions_*` fields
 
-The following fields are generated in separate scraping repositoryt by simple regex string searches of I-213 narrative fields, as below:
+The following fields are generated in separate scraping repository by simple regex string searches of I-213 narrative fields, as below:
 
 ```
 mentions_airport: '[Aa]irport'
