@@ -7,6 +7,3 @@
 .RData
 *.Rproj
 .~lock*
-*.pdf
-*.html
-*.png
