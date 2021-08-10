@@ -13,22 +13,35 @@ library(assertr)
 # census_api = Sys.getenv("CENSUS_API_KEY")
 # census_api_key(census_api, install=TRUE)
 
-# return data frame of geographical unit identifier and descriptive name
-df_counties <- get_acs(
-  geography = "county", 
+# load table of variable names, labels
+v18 <- load_variables(2018, "acs5", cache = TRUE)
+
+state_pop <- get_acs(
+  geography = "state",
   variables = c("Total Population" = "B01003_001"),
   year = 2018,
   survey = "acs5")
 
-df_counties <- df_counties %>% 
+state_pop <- state_pop %>% 
   rename(name = NAME,
          geoid = GEOID)
 
-# standardize variable names
-df_counties$name <- tolower(df_counties$name)
+wa_pop <- state_pop %>% 
+  filter(name == 'Washington')
+
+county_pop <- get_acs(
+  geography = "county", 
+  variables = c("Total Population" = "B01003_001"),
+  year = 2018,
+  survey = "acs5") 
+
+county_pop <- county_pop %>% 
+  rename(name = NAME,
+         geoid = GEOID)
+
+county_pop$name <- tolower(county_pop$name)
   
-# separate geoid into state and county identifiers
-df_counties <- df_counties %>%
+county_pop <- county_pop %>%
   separate(geoid, 
            c("geoid_state", 
              "geoid_county"), 
@@ -36,6 +49,18 @@ df_counties <- df_counties %>%
            remove = FALSE
            )
 
-# Writing out county to AOR mapping
+wa_counties <- county_pop %>% 
+  filter(geoid_state == 53)
+
+wa_pop <- bind_rows(wa_counties, wa_pop)
+
+wa_pop$name <- tolower(wa_pop$name)
+
 outputfile <- here('county-pop', 'output', 'county-pop.csv')
-write_csv(df_counties, outputfile)
+write_csv(county_pop, outputfile)
+
+outputfile <- here('county-pop', 'output', 'state-pop.csv')
+write_csv(state_pop, outputfile)
+
+outputfile <- here('county-pop', 'output', 'wa-pop.csv')
+write_csv(wa_pop, outputfile)

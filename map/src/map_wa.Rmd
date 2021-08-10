@@ -241,36 +241,32 @@ Here we calculate and map rate of I-213 apprehensions per capita, using ACS 5 ye
 
 ```{r map_counties_per_capita, echo=TRUE, message=FALSE, warning=FALSE}
 
-county_pop <- read.delim(here::here('map', 'input', 'county-pop.csv'), sep=',')
+wa_pop <- read.delim(here::here('map', 'input', 'wa-pop.csv'), sep=',')
 
-county_pop$name <- gsub(" county", "", county_pop$name)
-county_pop$name <- gsub(" city and borough", "", county_pop$name)
-county_pop$name <- gsub(" borough", "", county_pop$name)
-county_pop$name <- gsub(" municipality", "", county_pop$name)
-county_pop$name <- gsub(" census area", "", county_pop$name)
-county_pop$name <- str_trim(county_pop$name)
+wa_total_pop <- wa_pop %>% 
+  filter(name == "washington")
 
-# county_pop merge with counties
+wa_total_pop <- wa_total_pop$estimate
 
-county_pop <- county_pop %>% 
+wa_pop <- wa_pop %>% 
+  filter(name != "washington")
+
+wa_pop$name <- gsub(" county", "", wa_pop$name)
+wa_pop$name <- str_trim(wa_pop$name)
+
+wa_pop <- wa_pop %>% 
   separate(., col=name, sep=',',
            remove = FALSE,
            into=c('county', 'state'))
 
-county_pop$state <- str_trim(county_pop$state)
-county_pop$county <- str_trim(county_pop$county)
+wa_pop$state <- str_trim(wa_pop$state)
+wa_pop$county <- str_trim(wa_pop$county)
 
-county_pop <- county_pop %>%
+wa_pop <- wa_pop %>%
   mutate(priority = county %in% priority_counties)
 
-county_pop <- county_pop %>%
+wa_pop <- wa_pop %>%
   mutate(priority_plus = county %in% priority_plus)
-
-# Checking estimated pop in priority counties
-wa_pop <- county_pop %>% 
-  filter(state == 'washington')
-
-wa_pop_total <- sum(wa_pop$estimate)
 
 wa_pop_prior <- wa_pop %>% 
   filter(priority == TRUE)
@@ -281,12 +277,12 @@ wa_pop_prior_plus <- wa_pop %>%
 wa_pop_prior <- sum(wa_pop_prior$estimate)
 wa_pop_prior_plus <- sum(wa_pop_prior_plus$estimate)
 
-prop_pop_prior <- wa_pop_prior / wa_pop_total
-wa_pop_prior_plus <- wa_pop_prior_plus / wa_pop_total
+prop_pop_prior <- wa_pop_prior / wa_total_pop
+wa_pop_prior_plus <- wa_pop_prior_plus / wa_total_pop
 
 # merge and calcuiate n forms per capita
 
-data <- merge(counties, county_pop, by=c('county', 'state'))
+data <- merge(counties, wa_pop, by=c('county', 'state'))
 
 data$i_213_per_capita <- data$n / data$estimate
 
@@ -335,18 +331,27 @@ Table of apprehensions per capita:
 
 to_print <- data %>%
   select(c('county', 'n', 'estimate', 'i_213_per_capita')) %>% 
-  arrange(desc(i_213_per_capita)) %>% 
-  rename("County" = 'county',
-         "Total apprehensions" = 'n',
-         "Population" = 'estimate',
-         "Apprehensions per capita" = 'i_213_per_capita') %>% 
-  mutate(County = str_to_title(County))
+  mutate(county = str_to_title(county))
   
 st_geometry(to_print) <- NULL
+
+total_arrests <- sum(to_print$n, na.rm=TRUE)
+wa_per_capita <- total_arrests / wa_total_pop
+
+to_print <- to_print %>% 
+  add_row(county = 'Washington state total',
+          estimate = wa_total_pop,
+          n = total_arrests,
+          i_213_per_capita = wa_per_capita)
+
+to_print <- to_print %>% 
+  arrange(desc(i_213_per_capita))
+
+col_names <- c('County', 'Total apprehensions', 'Population','Apprehensions per capita')
 
 caption <- paste("WA State I-213 apprehensions per capita\n", min_date, " to ", max_date, sep='')
 caption_html <- paste("<b>WA State I-213 apprehensions per capita</b><br><i>", min_date, " to ", max_date, sep='')
 
-write(knitr::kable(to_print, caption = caption_html, digits=4, 'html'), '../output/i213-per-capita.html')
-print(knitr::kable(to_print, caption = caption, digits=4))
+write(knitr::kable(to_print, caption = caption_html, col.names = col_names, digits=4, 'html'), '../output/i213-per-capita.html')
+print(knitr::kable(to_print, caption = caption, col.names = col_names, digits=4))
 ```
