@@ -20,11 +20,11 @@ Dataset in this repo consists of scraped I-213 forms, withholding descriptive "n
   - `import/input/uw-chr-i213-public.csv.gz` - Public version of I-213 dataset, compressed pipe-separated (`|`) CSV format.
 - `county-pop/` - Downloads county and state population data for per-capita calculations from ACS via `tidycensus`. Requires ACS API key.
 - `map/` - Generates I-213 maps and per-capita table used in 2021-08-11 UWCHR report ["Protecting Immigrant Rights: Is Washington’s Law Working?"](https://jsis.washington.edu/humanrights/2021/08/11/protecting-immigrant-rights-is-washingtons-law-working/) 
-- `docs/` - Web version of `map/src/map_wa.Rmd` published at [uwchr.github.io/i-213-analysis/](uwchr.github.io/i-213-analysis/)
+- `docs/` - Web version of `map/src/map_wa.Rmd` published at [uwchr.github.io/i-213-analysis/](https://uwchr.github.io/i-213-analysis/)
 
 ## I-213 fields
 
-### Form fields
+### form fields
 
 The following fields contain data scraped directly from I-213 forms and associated I-831 "Continuation Page" forms. Where data is missing or contradicts apprehension narrative, we prefer data drawn from narrative. Notes below clarify which I-213 form field data is drawn from and any relevant data cleaning or explanatory notes.
 
