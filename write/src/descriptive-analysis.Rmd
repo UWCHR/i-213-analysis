@@ -202,7 +202,7 @@ i213 %>%
 
 ## Mapping apprehension location
 
-We can map records by their "At/Near" values in a variety of ways. For more exaples, see: [https://uwchr.github.io/i-213-analysis/map-wa.html]([https://uwchr.github.io/i-213-analysis/map-wa.html])
+We can map records by their "At/Near" values in a variety of ways. For more exaples, see: [https://uwchr.github.io/i-213-analysis/map-wa.html](https://uwchr.github.io/i-213-analysis/map-wa.html)
 
 ```{r at_near_maps, message = FALSE, warning = FALSE}
 
