@@ -3,7 +3,6 @@ title: I-213 descriptive analysis
 author:
 - "[Phil Neff](https://github.com/philneff)"
 date: 22 September, 2021
-output_dir: "output"
 output:
     html_document:
         html_preview: true
@@ -45,9 +44,7 @@ As part of its ["Human Rights At Home"](https://jsis.washington.edu/humanrights/
 
 Under FOIA, UWCHR initially requested all I-213s produced by both CBP and ICE in the state of Washington from 2012-2017; when the agencies failed to adhere to the requirements of FOIA—first claiming privacy waivers were needed for every individual form and then claiming that as law enforcement agencies, they were exempt from providing such records—UWCHR sued in September 2018. UWCHR underwent separate settlement negotiations with each sub-agency. In these discussions, CBP agreed to provide a sample of all documents produced by staff in the agency’s Blaine and Spokane sectors from January 1, 2012 to September 30, 2017; and ICE agreed to provide copies of all documents produced from January 1, 2019 to March 31, 2020 by staff from the agency’s Seattle field office.
 
-The resulting PDF forms were scraped and cleaned in a separate private repository developed by the Human Rights Data Analysis Group (HRDAG) and maintained by UWCHR. Cleaning and hand-coding of resulting data is ongoing; the following is a preliminary descriptive analysis of the collection. Maps of apprehension locations by I-213 `at_near` value and `at_near` county per capita were previously published for UWCHR's August 2021 report ["Protecting Immigrant Rights: Is Washington’s Law Working?"](https://jsis.washington.edu/humanrights/2021/08/11/protecting-immigrant-rights-is-washingtons-law-working/).
-
-- Link to map-wa.Rmd
+The resulting PDF forms were scraped and cleaned in a separate private repository developed by the Human Rights Data Analysis Group (HRDAG) and maintained by UWCHR. Cleaning and hand-coding of resulting data is ongoing; the following is a preliminary descriptive analysis of the collection. Maps of apprehension locations by I-213 `at_near` value and `at_near` county per capita were previously published for UWCHR's August 2021 report ["Protecting Immigrant Rights: Is Washington’s Law Working?"](https://jsis.washington.edu/humanrights/2021/08/11/protecting-immigrant-rights-is-washingtons-law-working/), see: [https://uwchr.github.io/i-213-analysis/map-wa.html]([https://uwchr.github.io/i-213-analysis/map-wa.html]).
 
 ## I-213 structure
 
@@ -203,9 +200,9 @@ i213 %>%
 
 ```
 
-We can map records by their "At/Near" values in a variety of ways. For more exaples, see: 
+## Mapping apprehension location
 
-- Refer to other maps
+We can map records by their "At/Near" values in a variety of ways. For more exaples, see: [https://uwchr.github.io/i-213-analysis/map-wa.html]([https://uwchr.github.io/i-213-analysis/map-wa.html])
 
 ```{r at_near_maps, message = FALSE, warning = FALSE}
 
@@ -327,6 +324,8 @@ Other codes are tentatively deciphered as follows based on context clues in I-21
 - "LEA": Likely "Law Enforcement Assistance"; appears to involve direct requests for assistance by local law enforcement.
 - "O": Unknown, possibly "Other".
 
+For a comparison of these codes with keywords mentioned in I-213 narratives, see: [https://uwchr.github.io/i-213-analysis/heatmaps.html](https://uwchr.github.io/i-213-analysis/heatmaps.html)
+
 We can examine these "Method of Location/Apprehension" categories along various axes including over time, by "Location Code" as discussed above. We note for example that the Seattle and Portland ICE offices have a very different distribution of categories compared to the Blaine or Spokane Border Patrol Sectors; and that the Blaine Border Patrol Sector and Spokane Border Patrol Sector also differ, with Spokane's distribution more suggestive of reliance on collaboration with local law enforcement.
 
 Comparison of proportion of these categories by county is also interesting: note high proportion of "PB" ("Patrolling Border") apprehensions in Northern border counties. Note also the correspondence of the categories "CFD" ("CAP Federal") and "CST" ("CAP State") with locations of major prisons: e.g. the Federal Detention Center, SeaTac in King County; or Coyote Ridge Corrections Center in Connel, WA in Franklin County.
@@ -357,7 +356,7 @@ i213 <- i213 %>%
          str_detect(method_location_apprehension, "NCA") ~ "Non-Custodial Arrest",
          str_detect(method_location_apprehension, "LEA") ~ "Law Enforcement Assist",
          str_detect(method_location_apprehension, "OA") ~ "Other Agency",
-         str_detect(method_location_apprehension, "OTF") ~ "Other Task Force",
+         str_detect(method_location_apprehension, "OTF") ~ "Task Force",
          str_detect(method_location_apprehension, "TCB") ~ "Transportation Check",
          str_detect(method_location_apprehension, "ISP") ~ "Inspection",
          str_detect(method_location_apprehension, "L") ~ "Located",
@@ -413,6 +412,8 @@ p3 <- data %>%
 p3
 
 ```
+
+## Mapping "Method of Location/Apprehension"
 
 ```{r method_location_apprehension_map, message = FALSE, warning = FALSE}
 

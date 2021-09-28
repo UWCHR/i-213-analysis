@@ -1,0 +1,182 @@
+---
+title: I-213 heatmaps
+author:
+- "[Phil Neff](https://github.com/philneff)"
+date: 16 April, 2021
+output:
+    html_document:
+        html_preview: true
+---
+
+```{r import, message = FALSE, warning = FALSE}
+library(tidyverse); library(lubridate); library(here); library(skimr); library(yaml); library(gplots)
+inputfile <- here::here("write/input/uw-chr-i213-public.csv.gz")
+
+i213 <- read_delim(
+    inputfile, delim = "|", 
+    col_types = cols(
+        .default                     = col_character(),
+        source                       = col_factor(),
+        sex                          = col_factor(),
+        cmplxn                       = col_character(),
+        country_of_citizenship       = col_factor(),
+        year                         = col_double(),
+        month                        = col_double(),
+        day                          = col_double(),
+        hour                         = col_double(),
+        minute                       = col_double(),
+        age                          = col_double(),
+        accompanied_juvenile_flag    = col_double(),
+        unaccompanied_juvenile_flag  = col_double(),
+        custody_redetermination_flag = col_double()
+))
+
+priority_counties <- read_yaml('../../shared/hand/priority_counties.yaml')
+
+i213 <- i213 %>%
+    filter(!is.na(source))
+
+i213 <- i213 %>%
+    mutate_at(vars(starts_with('mentions_')), as.logical)
+
+```
+
+Fields starting with "mentions_" are result of simple `str_detect()` function for keywords in I-213 "Narrative" fields. Search terms are as follows:
+
+- `mentions_airport`: `'[Aa]irport'`
+- `mentions_anonymous_tip`: `'[Aa]nonymous tip|concerned citizen'`
+- `mentions_border_patrol`: `'[Bb]order [Pp]atrol'`
+- `mentions_bus`: `'([Bb]us |[Bb]us\.|[Bb]us,)'`
+- `mentions_corrections`: `'[Cc]orrections'`
+- `mentions_courthouse`: `'([Cc]ourthouse|[Cc]ourt [Hh]ouse)'`
+- `mentions_database`: `'[Dd]atabase'`
+- `mentions_detainer`: `'[Dd]etainer|[I1]-247|[I1]-2[0Oo][0Oo]'`
+- `mentions_family_unit`: `'[Ff]amily [Uu]nit'`
+- `mentions_greyhound`: `'([Gg]reyhound|[Gg]rey [Hh]ound)'`
+- `mentions_hsi`: `'HSI|[Hh]omeland [Ss]ecurity [Ii]nvestigation'`
+- `mentions_jail`: `'[Jj]ail'`
+- `mentions_juvenile`: `'[Jj]uvenile'`
+- `mentions_police`: `'[Pp]olice'`
+- `mentions_prison`: `'[Pp]rison'`
+- `mentions_probation_office`: `'[Pp]robation [Oo]ffice'`
+- `mentions_secure_comm`: `'[Ss]ecure [Cc]ommunities|Immigration Alien Response|(IAR)'`
+- `mentions_sheriff`: `'[Ss]heriff'`
+- `mentions_state_patrol`: `'[Ss]tate [Pp]atrol'`
+- `mentions_surveillance`: `'surveillance'`
+- `mentions_task_force`: `'[Tt]ask [Ff]orce'`
+- `mentions_traffic`: `'traffic'`
+
+In the below we compare these with `method_location_apprehension` values in order to help gather context clues for decoding "Method of Location/Apprehension" codes.
+
+```{r skim_mentions}
+
+skimr::skim(i213, 
+  starts_with("mentions_")
+  )
+
+```
+
+```{r method_location_apprehension_clean, message = FALSE, warning = FALSE}
+
+i213 <- i213 %>% 
+  mutate(method_loc_app_clean = case_when(
+         str_detect(method_location_apprehension, "PB") ~ "PB",
+         str_detect(method_location_apprehension, "CFD") ~ "CFD",
+         str_detect(method_location_apprehension, "CST") ~ "CST",
+         str_detect(method_location_apprehension, "CLC") ~ "CLC",
+         str_detect(method_location_apprehension, "NCA") ~ "NCA",
+         str_detect(method_location_apprehension, "LEA") ~ "LEA",
+         str_detect(method_location_apprehension, "OA") ~ "OA",
+         str_detect(method_location_apprehension, "OTF") ~ "OTF",
+         str_detect(method_location_apprehension, "TCB") ~ "TCB",
+         str_detect(method_location_apprehension, "ISP") ~ "ISP",
+         str_detect(method_location_apprehension, "L") ~ "L",
+         str_detect(method_location_apprehension, "O|0") ~ "O",
+         is.na(method_location_apprehension) ~ NA_character_,
+         TRUE ~ "OTHER"))
+  
+```
+
+First we examine correlations of keyword mentions in I-213 narratives. Some strong positive correlations are trivial: e.g. "Greyhound" and "bus"; "prison" and "corrections". Others may be interesting: i.e. positive correlation bewteen "database" and "jail" but negative correlation between "database" and "prison".
+
+```{r mentions_corr, message = FALSE, warning = FALSE, fig.height = 8, fig.width = 8}
+
+data <- i213 %>%
+  select(starts_with('mentions')) 
+
+corrplot::corrplot(cor(data))
+
+```
+
+Comparing simple standardization of `method_location_apprehension` with `mentions_*` columns. Note similarity of "O", "LEA", "OTF" categories per clustering. Keywords largely seem appropriate in relation to proposed "Method of Location/Apprehension" values as discussed in [https://uwchr.github.io/i-213-analysis/](https://uwchr.github.io/i-213-analysis/).
+
+```{r mentions_method, message = FALSE, warning = FALSE, fig.height = 8, fig.width = 8}
+
+mentions_method <- i213 %>%
+  select(method_loc_app_clean, starts_with('mentions')) %>% 
+  group_by(method_loc_app_clean) %>% 
+  summarize_all(sum)
+
+m <- mentions_method %>% 
+  select(starts_with('mentions')) %>%
+  t %>% 
+  as.matrix()
+
+colnames(m) <- as.character(mentions_method$method_loc_app_clean)
+
+heatmap.2(m,
+          scale = 'row',
+          density.info="none",  # turns off density plot inside color legend
+          trace="none",         # turns off trace lines inside the heat map
+          main="method_location_apprehension\nin search string mentions_*",
+          margins =c(12,12) )
+```
+
+Comparison after grouping "LEA/OTF/O". Note "CLC" similartiy to NA values for `method_location_apprehension`, which makes sense given "CLC" is most common value after simple standardization.
+
+```{r mentions_method_second_pass, message = FALSE, warning = FALSE, fig.height = 8, fig.width = 8}
+
+i213 <- i213 %>% 
+  mutate(method_loc_app_clean = case_when(
+         str_detect(method_location_apprehension, "PB") ~ "PB",
+         str_detect(method_location_apprehension, "CFD") ~ "CFD",
+         str_detect(method_location_apprehension, "CST") ~ "CST",
+         str_detect(method_location_apprehension, "CLC") ~ "CLC",
+         str_detect(method_location_apprehension, "NCA") ~ "NCA",
+         str_detect(method_location_apprehension, "LEA") ~ "LEA/OTF/O",
+         str_detect(method_location_apprehension, "OA") ~ "OA",
+         str_detect(method_location_apprehension, "OTF") ~ "LEA/OTF/O",
+         str_detect(method_location_apprehension, "TCB") ~ "TCB",
+         str_detect(method_location_apprehension, "ISP") ~ "ISP",
+         str_detect(method_location_apprehension, "L") ~ "L",
+         str_detect(method_location_apprehension, "O|0") ~ "LEA/OTF/O",
+         is.na(method_location_apprehension) ~ NA_character_,
+         TRUE ~ "OTHER"))
+
+mentions_method <- i213 %>%
+  select(method_loc_app_clean, starts_with('mentions')) %>% 
+  group_by(method_loc_app_clean) %>% 
+  summarize_all(sum)
+
+m <- mentions_method %>% 
+  select(starts_with('mentions')) %>%
+  t %>% 
+  as.matrix()
+
+colnames(m) <- as.character(mentions_method$method_loc_app_clean)
+
+heatmap.2(m,
+          scale = 'row',
+          density.info="none",  # turns off density plot inside color legend
+          trace="none",         # turns off trace lines inside the heat map
+          main="method_location_apprehension\nin search string mentions_*",
+          margins =c(12,12) )
+
+heatmap.2(m,
+          scale = 'column',
+          density.info="none",  # turns off density plot inside color legend
+          trace="none",         # turns off trace lines inside the heat map
+          main="search string mentions_* in\nmethod_location_apprehension",
+          margins =c(12,12) )
+
+```
