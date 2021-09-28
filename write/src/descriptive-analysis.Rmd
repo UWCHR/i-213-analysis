@@ -3,8 +3,9 @@ title: I-213 descriptive analysis
 author:
 - "[Phil Neff](https://github.com/philneff)"
 date: 22 September, 2021
+output_dir: "output"
 output:
-    github_document:
+    html_document:
         html_preview: true
 ---
 
