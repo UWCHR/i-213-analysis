@@ -19,7 +19,7 @@ inputfile <- here::here("write/input/uw-chr-i213-public.csv.gz")
 i213 <- read_delim(
     inputfile, delim = "|", 
     col_types = cols(
-        .default                     = col_character(),
+        # .default                     = col_character(),
         source                       = col_factor(),
         sex                          = col_factor(),
         cmplxn                       = col_character(),
@@ -211,12 +211,6 @@ states <- st_as_sf(map("state", crs = 4326, plot = FALSE, fill = TRUE))
 states <- cbind(states, st_coordinates(st_centroid(states)))
 states$ID <- toTitleCase(as.character(states$ID))
 
-sites <- i213 %>% select(lon, lat) %>% 
-  na.omit()
-
-sites <- st_as_sf(sites, coords = c("lon", "lat"),
-                   crs = 4326, agr = "constant")
-
 pnw_coords <- coord_sf(xlim = c(-130, -112.5), ylim = c(41, 50), expand = FALSE, crs = 4326)
 
 data_at_near <- i213 %>% 
@@ -349,7 +343,7 @@ i213 <- i213 %>%
          is.na(method_location_apprehension) ~ NA_character_,
          TRUE ~ NA_character_),
          method_verbose = case_when(
-         str_detect(method_location_apprehension, "PB") ~ "Patrolling",
+         str_detect(method_location_apprehension, "PB") ~ "Patrol Border",
          str_detect(method_location_apprehension, "CFD") ~ "CAP Federal",
          str_detect(method_location_apprehension, "CST") ~ "CAP State",
          str_detect(method_location_apprehension, "CLC") ~ "CAP Local",
@@ -446,7 +440,7 @@ m1
 
 We can also examine various demographic characteristics in comparison with the above categories; note below the only "Method of Location/Apprehension" category with a majority of apprehensions reported as being of people with "Fair" or "Light" complexion is "ISP" or "Inspection" at authorized points of entry.
 
-```{r cmplxn, message=FALSE, warning=FALSE}
+```{r cmplxn_by_loc_meth, message=FALSE, warning=FALSE}
 
 p1 <- i213 %>%
   ggplot(aes(x = cmplxn, fill= cmplxn)) +
@@ -467,5 +461,139 @@ p2 <- i213 %>%
                                    hjust = 1))
 
 p2
+
+```
+
+## Country of origin
+
+A few views of most common "Country of Origin" categories. All others have <50 records in collection.
+
+```{r country_by_loc_meth, message=FALSE, warning=FALSE}
+
+i213 <- i213 %>% 
+  mutate(country_short = case_when(
+         str_detect(country_of_citizenship, "MEXICO") ~ "MEXICO",
+         str_detect(country_of_citizenship, "GUATEMALA") ~ "GUATEMALA",
+         str_detect(country_of_citizenship, "INDIA") ~ "INDIA",
+         str_detect(country_of_citizenship, "HONDURAS") ~ "HONDURAS",
+         str_detect(country_of_citizenship, "EL SALVADOR") ~ "EL SALVADOR",
+         str_detect(country_of_citizenship, "CHINA") ~ "CHINA",
+         is.na(country_of_citizenship) ~ NA_character_,
+         TRUE ~ "ALL OTHERS"))
+
+p1 <- i213 %>%
+  ggplot(aes(x = country_short, fill= country_short)) +
+  geom_bar() +
+  facet_wrap(~office) +
+  theme(axis.text.x = element_text(angle = 90,
+                                   vjust = 0.5,
+                                   hjust = 1))
+
+p1
+
+p2 <- i213 %>%
+  ggplot(aes(x = country_short, fill= country_short)) +
+  geom_bar() +
+  facet_wrap(~method_short) +
+  theme(axis.text.x = element_text(angle = 90,
+                                   vjust = 0.5,
+                                   hjust = 1))
+
+p2
+
+p3 <- i213 %>% 
+  filter(county %in% priority_counties) %>% 
+  ggplot(aes(x = county, fill= country_short)) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  theme(axis.text.x = element_text(angle = 90,
+                                   vjust = 0.5,
+                                   hjust = 1))
+
+p3
+
+i213$month <- as.Date(cut(i213$date, breaks='month'))
+
+p4 <- i213 %>% 
+  filter(!is.na(state),
+       state == 'WA',
+       date >= '2019-01-01',
+       source == 'ice') %>% 
+  ggplot(aes(x = month)) +
+  geom_bar() +
+  scale_x_date(labels = scales::date_format("%b"),
+               breaks = "1 month") +
+  facet_wrap(~country_short) +
+  theme(axis.text.x = element_text(angle = 90,
+                                   vjust = 0.5,
+                                   hjust = 1))
+
+p4
+
+```
+
+## Mapping "mentions_*"
+
+A few passes at mapping records that mention keywords.
+
+Note I-213s with narratives mentioning keyword "courthouse" include high concentration in central WA; see 2019 UWCHR [report on courthouse arrests in WA state](https://jsis.washington.edu/humanrights/2019/10/16/ice-cbp-courthouse-arrests/).
+
+```{r mentions_courthouse_map, message=FALSE, warning=FALSE}
+
+data <- i213 %>% 
+  group_by(mentions_courthouse, lon, lat) %>% 
+  summarise(n = n()) %>% 
+  filter(mentions_courthouse == TRUE) %>% 
+  na.omit()
+
+data <- st_as_sf(data, coords = c("lon", "lat"),
+                  crs = 4326, agr = "constant")
+
+ggplot(data = world) +
+    geom_sf() +
+    geom_sf(data = states, fill = NA) +
+    geom_sf(data = data, aes(size=n), shape = 21, fill = "red", alpha=.5) +
+    pnw_coords +
+    ggtitle('I-213 forms mentioning "courthouse" by "at_near" latitude/longitude')
+
+```
+
+```{r mentions_juvenile_map, message=FALSE, warning=FALSE}
+
+data <- i213 %>% 
+  group_by(mentions_juvenile, lon, lat) %>% 
+  summarise(n = n()) %>% 
+  filter(mentions_juvenile == TRUE) %>% 
+  na.omit()
+
+data <- st_as_sf(data, coords = c("lon", "lat"),
+                  crs = 4326, agr = "constant")
+
+ggplot(data = world) +
+    geom_sf() +
+    geom_sf(data = states, fill = NA) +
+    geom_sf(data = data, aes(size=n), shape = 21, fill = "red", alpha=.5) +
+    pnw_coords +
+    ggtitle('I-213 forms mentioning "juvenile" by "at_near" latitude/longitude')
+
+```
+
+```{r mentions_bus_map, message=FALSE, warning=FALSE}
+
+data <- i213 %>% 
+  group_by(mentions_bus, lon, lat) %>% 
+  summarise(n = n()) %>% 
+  filter(mentions_bus == TRUE) %>% 
+  na.omit()
+
+data <- st_as_sf(data, coords = c("lon", "lat"),
+                  crs = 4326, agr = "constant")
+
+ggplot(data = world) +
+    geom_sf() +
+    geom_sf(data = states, fill = NA) +
+    geom_sf(data = data, aes(size=n), shape = 21, fill = "red", alpha=.5) +
+    pnw_coords +
+    ggtitle('I-213 forms mentioning "bus" by "at_near" latitude/longitude')
 
 ```
