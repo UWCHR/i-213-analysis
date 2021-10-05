@@ -6,6 +6,10 @@ date: 22 September, 2021
 output:
     html_document:
         html_preview: true
+        toc: true
+        toc_depth: 3
+        toc_float: true
+        code_folding: hide
 ---
 
 ```{r import, message = FALSE, warning = FALSE}
@@ -140,7 +144,7 @@ p2
 
 ```
 
-## Overview: Demographics
+## Demographics: Overview
 
 Here we display tables for basic demographic characteristics for subjects of the ICE I-213 forms: ten most common "Country of Citizenship" values; "Age" and "Sex" breakdowns (excluding missing values); and "Complexion".
 
@@ -200,7 +204,7 @@ i213 %>%
 
 ```
 
-## Mapping apprehension location
+### Mapping apprehension location
 
 We can map records by their "At/Near" values in a variety of ways. For more exaples, see: [https://uwchr.github.io/i-213-analysis/map-wa.html](https://uwchr.github.io/i-213-analysis/map-wa.html)
 
@@ -230,7 +234,7 @@ ggplot(data = world) +
 
 ```
 
-## Apprehension location by DHS office
+### Apprehension location by DHS office
 
 I-213 forms include "Location Code" field designating the DHS office and sub-office responsible for the apprehension. Values consist of two three-letter codes separated by a forward-slash ("/"). No public data dictionary translating these codes is known, but they appear to be geographically consistent, as seen below. This analysis suggests that the first part of the code designates the local ICE sub-field office or Border Patrol station, while the second part of the code designates the regional ICE field office or Border Patrol sector, e.g. "RIC/SEA" for Seattle ICE Field Office, Richland, WA Sub-Field Office (largely corresponding a published [map of ICE Enforcement and Removal Operations field offices](https://www.ice.gov/doclib/about/offices/ero/pdf/eroFieldOffices.pdf)); "EUG/POO" for Portland ICE Office, Eugene, OR Sub-Field Office; "SMS/BLW" for Blaine Sector Border Patrol, Sumas Station; "SPK/SPW" for Spokane Sector Border Patrol, Spokane Station (roughly corresponding to a published [table of Border Patrol sectors and stations](https://www.cbp.gov/border-security/along-us-borders/border-patrol-sectors)).
 
@@ -407,7 +411,7 @@ p3
 
 ```
 
-## Mapping "Method of Location/Apprehension"
+### Mapping "Method of Location/Apprehension"
 
 ```{r method_location_apprehension_map, message = FALSE, warning = FALSE}
 
@@ -436,7 +440,9 @@ m1
 
 ```
 
-## Complexion by location and enforcement type
+## Demographics: Zooming in
+
+### Complexion by location and enforcement type
 
 We can also examine various demographic characteristics in comparison with the above categories; note below the only "Method of Location/Apprehension" category with a majority of apprehensions reported as being of people with "Fair" or "Light" complexion is "ISP" or "Inspection" at authorized points of entry.
 
@@ -464,7 +470,7 @@ p2
 
 ```
 
-## Country of origin
+### Country of origin
 
 A few views of most common "Country of Origin" categories. All others have <50 records in collection.
 
