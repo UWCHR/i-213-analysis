@@ -60,11 +60,17 @@ While I-213 form contents are relatively structured, some fields may be left bla
 
 ### Sample I-213 form
 
-![Sample I-213 form](../../shared/img/3866f3-1789-1791-1.png)
+The following is a typical I-213 form representing an apprehension upon entry at Sea-Tac International Airport. Note redacted and blank I-213 fields, as well as fields filled with "See Narrative". Most but not all text fields are scraped for the dataset analyzed here. Tick boxes are not scraped. 
+
+![](../../shared/img/3866f3-1789-1791-1.png)
 
 ### Sample I-831 form
 
-![Sample I-831 form](../../shared/img/3866f3-1789-1791-2.png)
+The following is a typical I-831 "Continuation Page" associated with the above I-213 form, which continues the "Narrative" field. Other text fields here are not scraped, but we note that the "Title" field might provide details regarding the official responsible for the apprehension, though this information is also included in the narrative in this case.
+
+I-213 narratives follow a semi-regular structure; we have scraped `at_near` values from the narrative where the "At Near" field reads "See Narrative"; and we have attempted to scrape "Current Criminal Charges" and "Current Administrative Charges" as `charge_code_words`, with lots of OCR inconsistencies. It appears that I-213 narratives are at least in part machine-generated rather than entered by hand: note the "null:" pointer preceding the description of the apprehension below.
+
+![](../../shared/img/3866f3-1789-1791-2.png)
 
 ## Data overview
 
