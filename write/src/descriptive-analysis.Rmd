@@ -111,7 +111,7 @@ i213 <- i213 %>%
 
 ## ICE record release installments
 
-Records were released by ICE to UWCHR in ten installments. Nine initial monthly installments were released from May 2020 to January 2021. Subsequent UWCHR research revealed additional I-213 forms which should have been disclosed per the terms of the FOIA lawsuit settlement; in response, ICE released a final installment in June 2021. Eacg ICE installment was released as a continuous PDF file. During the file scraping process, each installment was assigned a unique six-digit hash value which we mutate below into its corresponding release date for ease of interpretation.
+Records were released by ICE to UWCHR in ten installments. Nine initial monthly installments were released from May 2020 to January 2021. Subsequent UWCHR research revealed additional I-213 forms which should have been disclosed per the terms of the FOIA lawsuit settlement; in response, ICE released a final installment in June 2021. Each ICE installment was released as a continuous PDF file. During the file scraping process, each installment was assigned a unique six-digit hash value which we mutate below into its corresponding release date for ease of interpretation.
 
 Comparison of the installments follows. We note that date distribution of the installments is erratic but that the center of the date distributions of the first nine installments roughly advances chronologically through the timeline; while the final installment "back-fills" prior months. Note that the overall monthly distribution of records is relatively consistent. Comparison of the installments along other lines, such as geographic distribution, is possible but not particularly instructive; see "compare-installments.Rmd".
 
@@ -212,7 +212,7 @@ i213 %>%
 
 ### Mapping apprehension location
 
-We can map records by their "At/Near" values in a variety of ways. For more exaples, see: [https://uwchr.github.io/i-213-analysis/map-wa.html](https://uwchr.github.io/i-213-analysis/map-wa.html)
+We can map records by their "At/Near" values in a variety of ways. For more examples, see: [https://uwchr.github.io/i-213-analysis/map-wa.html](https://uwchr.github.io/i-213-analysis/map-wa.html)
 
 ```{r at_near_maps, message = FALSE, warning = FALSE}
 
@@ -313,7 +313,7 @@ i213 %>%
 
 ```
 
-As seen above, most of the codes consist of a primary alphabetic code followed by "NA" or "UNKNOWN", but others include secodary alpha-numeric codes. In some cases, the significance of these is unknown (e.g. "CLC 511.2.2", ", "L 13D"). However, the primary codes can be standardized into a dozen main categories, most of which can be tentatively decoded.
+As seen above, most of the codes consist of a primary alphabetic code followed by "NA" or "UNKNOWN", but others include secodary alpha-numeric codes. In some cases, the significance of these is unknown (e.g. "CLC 511.2.2", "L 13D"). However, the primary codes can be standardized into a dozen main categories, most of which can be tentatively decoded.
 
 Several of the codes are described in an [ICE document obtained via FOIA by the American Immigration Council](https://www.americanimmigrationcouncil.org/sites/default/files/foia_documents/cap_ice_4-15-14_0.pdf) (see page 44). Three of the codes refer to various jurisdictions of ICE's Criminal Alien Program (CAP): "CLC", "CST" and "CFD", referring to CAP Local (city and county jails and correctional facilities), CAP State (state prisons and corrections), and CAP Federal (federal prisons) respectively. The same document defines "NCA" as "Non-Custodial Arrest" for street arrests; and "L" as "Located" for arrests of fugitives. Review of I-213 narratives is largely consistent with these interpretations. (Other codes mentioned in this document are not represented in the UWCHR I-213 collection.)
 
