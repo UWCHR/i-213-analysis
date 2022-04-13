@@ -21,7 +21,7 @@ Dataset in this repo consists of scraped I-213 forms, withholding descriptive "n
 - `county-pop/` - Downloads county and state population data for per-capita calculations from ACS via `tidycensus`. Requires ACS API key.
 - `map/` - Generates I-213 maps and per-capita table used in 2021-08-11 UWCHR report ["Protecting Immigrant Rights: Is Washington’s Law Working?"](https://jsis.washington.edu/humanrights/2021/08/11/protecting-immigrant-rights-is-washingtons-law-working/) 
 - `write/` - Descriptive analysis notebooks
-- `docs/` - Documentation published at [uwchr.github.io/i-213-analysis/](uwchr.github.io/i-213-analysis/)
+- `docs/` - Documentation published at [https://uwchr.github.io/i-213-analysis/](https://uwchr.github.io/i-213-analysis/)
 
 ## I-213 fields
 
