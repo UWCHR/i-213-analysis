@@ -24,8 +24,8 @@ i213 <- read_delim(
     inputfile, delim = "|", 
     col_types = cols(
         # .default                     = col_character(),
-        source                       = col_factor(),
-        sex                          = col_factor(),
+        source                       = col_character(),
+        sex                          = col_character(),
         cmplxn                       = col_character(),
         country_of_citizenship       = col_factor(),
         year                         = col_double(),
@@ -91,9 +91,11 @@ A small number of records with missing `source` data represent fully-redacted fo
 ```{r source, message = FALSE, warning = FALSE}
 
 i213 <- i213 %>%
-    filter(!is.na(source))
+  mutate(across(where(is.character), ~ na_if(.,"")))
+
 
 ann <- i213 %>%
+    filter(!is.na(source)) %>% 
     count(source, year) %>%
     pivot_wider(names_from = source, values_from = n,
                 values_fill = list(n = 0)) %>%
@@ -218,7 +220,7 @@ We can map records by their "At/Near" values in a variety of ways. For more exam
 
 world <- ne_countries(scale = "medium", returnclass = "sf")
 states <- st_as_sf(map("state", crs = 4326, plot = FALSE, fill = TRUE))
-states <- cbind(states, st_coordinates(st_centroid(states)))
+states <- cbind(states, st_coordinates(st_point_on_surface(states)))
 states$ID <- toTitleCase(as.character(states$ID))
 
 pnw_coords <- coord_sf(xlim = c(-130, -112.5), ylim = c(41, 50), expand = FALSE, crs = 4326)
@@ -341,61 +343,60 @@ We can examine these "Method of Location/Apprehension" categories along various 
 
 Comparison of proportion of these categories by county is also interesting: note high proportion of "PB" ("Patrolling Border") apprehensions in Northern border counties. Note also the correspondence of the categories "CFD" ("CAP Federal") and "CST" ("CAP State") with locations of major prisons: e.g. the Federal Detention Center, SeaTac in King County; or Coyote Ridge Corrections Center in Connel, WA in Franklin County.
 
-```{r method_location_apprehension, message = FALSE, warning = FALSE}
+```{r method_location_apprehension, message=FALSE, warning=FALSE}
 
 i213 <- i213 %>% 
   mutate(method_short = case_when(
-         str_detect(method_location_apprehension, "PB") ~ "PB",
-         str_detect(method_location_apprehension, "CFD") ~ "CFD",
-         str_detect(method_location_apprehension, "CST") ~ "CST",
-         str_detect(method_location_apprehension, "CLC") ~ "CLC",
-         str_detect(method_location_apprehension, "NCA") ~ "NCA",
-         str_detect(method_location_apprehension, "LEA") ~ "LEA",
-         str_detect(method_location_apprehension, "OA") ~ "OA",
-         str_detect(method_location_apprehension, "OTF") ~ "OTF",
-         str_detect(method_location_apprehension, "TCB") ~ "TCB",
-         str_detect(method_location_apprehension, "ISP") ~ "ISP",
-         str_detect(method_location_apprehension, "L") ~ "L",
-         str_detect(method_location_apprehension, "O|0") ~ "O",
-         is.na(method_location_apprehension) ~ NA_character_,
-         TRUE ~ NA_character_),
+           str_detect(method_location_apprehension, "PB") ~ "PB",
+           str_detect(method_location_apprehension, "CFD") ~ "CFD",
+           str_detect(method_location_apprehension, "CST") ~ "CST",
+           str_detect(method_location_apprehension, "CLC") ~ "CLC",
+           str_detect(method_location_apprehension, "NCA") ~ "NCA",
+           str_detect(method_location_apprehension, "LEA") ~ "LEA",
+           str_detect(method_location_apprehension, "OA") ~ "OA",
+           str_detect(method_location_apprehension, "OTF") ~ "OTF",
+           str_detect(method_location_apprehension, "TCB") ~ "TCB",
+           str_detect(method_location_apprehension, "ISP") ~ "ISP",
+           str_detect(method_location_apprehension, "L") ~ "L",
+           str_detect(method_location_apprehension, "O|0") ~ "O",
+           is.na(method_location_apprehension) ~ NA_character_,
+            TRUE ~ NA_character_),
          method_verbose = case_when(
-         str_detect(method_location_apprehension, "PB") ~ "Patrol Border",
-         str_detect(method_location_apprehension, "CFD") ~ "CAP Federal",
-         str_detect(method_location_apprehension, "CST") ~ "CAP State",
-         str_detect(method_location_apprehension, "CLC") ~ "CAP Local",
-         str_detect(method_location_apprehension, "NCA") ~ "Non-Custodial Arrest",
-         str_detect(method_location_apprehension, "LEA") ~ "Law Enforcement Assist",
-         str_detect(method_location_apprehension, "OA") ~ "Other Agency",
-         str_detect(method_location_apprehension, "OTF") ~ "Task Force",
-         str_detect(method_location_apprehension, "TCB") ~ "Transportation Check",
-         str_detect(method_location_apprehension, "ISP") ~ "Inspection",
-         str_detect(method_location_apprehension, "L") ~ "Located",
-         str_detect(method_location_apprehension, "O|0") ~ "Other",
-         is.na(method_location_apprehension) ~ NA_character_,
-         TRUE ~ NA_character_),
+           str_detect(method_location_apprehension, "PB") ~ "Patrol Border",
+           str_detect(method_location_apprehension, "CFD") ~ "CAP Federal",
+           str_detect(method_location_apprehension, "CST") ~ "CAP State",
+           str_detect(method_location_apprehension, "CLC") ~ "CAP Local",
+           str_detect(method_location_apprehension, "NCA") ~ "Non-Custodial Arrest",
+           str_detect(method_location_apprehension, "LEA") ~ "Law Enforcement Assist",
+           str_detect(method_location_apprehension, "OA") ~ "Other Agency",
+           str_detect(method_location_apprehension, "OTF") ~ "Task Force",
+           str_detect(method_location_apprehension, "TCB") ~ "Transportation Check",
+           str_detect(method_location_apprehension, "ISP") ~ "Inspection",
+           str_detect(method_location_apprehension, "L") ~ "Located",
+           str_detect(method_location_apprehension, "O|0") ~ "Other",
+           is.na(method_location_apprehension) ~ NA_character_,
+            TRUE ~ NA_character_),
          method_int_border = case_when(
-         str_detect(method_location_apprehension, "PB") ~ "Border",
-         str_detect(method_location_apprehension, "CFD") ~ "Interior",
-         str_detect(method_location_apprehension, "CST") ~ "Interior",
-         str_detect(method_location_apprehension, "CLC") ~ "Interior",
-         str_detect(method_location_apprehension, "NCA") ~ "Interior",
-         str_detect(method_location_apprehension, "LEA") ~ "Interior",
-         str_detect(method_location_apprehension, "OA") ~ "Interior",
-         str_detect(method_location_apprehension, "OTF") ~ "Interior",
-         str_detect(method_location_apprehension, "TCB") ~ "Interior",
-         str_detect(method_location_apprehension, "ISP") ~ "Border",
-         str_detect(method_location_apprehension, "L") ~ "Interior",
-         str_detect(method_location_apprehension, "O|0") ~ "Other",
-         is.na(method_location_apprehension) ~ NA_character_,
-         TRUE ~ NA_character_))
+           str_detect(method_location_apprehension, "PB") ~ "Border",
+           str_detect(method_location_apprehension, "CFD") ~ "Interior",
+           str_detect(method_location_apprehension, "CST") ~ "Interior",
+           str_detect(method_location_apprehension, "CLC") ~ "Interior",
+           str_detect(method_location_apprehension, "NCA") ~ "Interior",
+           str_detect(method_location_apprehension, "LEA") ~ "Interior",
+           str_detect(method_location_apprehension, "OA") ~ "Interior",
+           str_detect(method_location_apprehension, "OTF") ~ "Interior",
+           str_detect(method_location_apprehension, "TCB") ~ "Interior",
+           str_detect(method_location_apprehension, "ISP") ~ "Border",
+           str_detect(method_location_apprehension, "L") ~ "Interior",
+           str_detect(method_location_apprehension, "O|0") ~ "Other",
+           is.na(method_location_apprehension) ~ NA_character_,
+            TRUE ~ NA_character_))
 
 i213$date <- as.Date(i213$date)
 
 data <- i213 %>%
-  select(date, state, source, method_location_apprehension, method_short, method_verbose, kww_in_force, office, county) %>%
+  select(date, state, source, method_location_apprehension, method_short, method_verbose, method_int_border, kww_in_force, office, county) %>%
   filter(!is.na(state),
-         state == 'WA',
          date >= '2019-01-01',
          source == 'ice')
 
@@ -430,7 +431,7 @@ p3 <- data %>%
   filter(county %in% priority_counties) %>% 
   ggplot(aes(x = county, fill= method_verbose)) +
   geom_bar(position = "fill") +
-  scale_y_continuous(labels = scales::percent) +
+  scale_y_continuous() +
   theme(axis.text.x = element_text(angle = 90,
                                    vjust = 0.5,
                                    hjust = 1))
@@ -438,15 +439,25 @@ p3 <- data %>%
 p3
 
 p4 <- data %>% 
-  filter(!county %in% priority_counties) %>% 
+  filter(!county %in% priority_counties) %>%
   ggplot(aes(x = county, fill= method_verbose)) +
   geom_bar(position = "fill") +
-  scale_y_continuous(labels = scales::percent) +
+  scale_y_continuous() +
   theme(axis.text.x = element_text(angle = 90,
                                    vjust = 0.5,
                                    hjust = 1))
 
 p4
+
+p5 <- data %>% 
+  filter(county %in% priority_counties) %>%
+  ggplot(aes(x = county, fill= method_int_border)) +
+  geom_bar() +
+  theme(axis.text.x = element_text(angle = 90,
+                                   vjust = 0.5,
+                                   hjust = 1))
+
+p5
 
 ```
 
