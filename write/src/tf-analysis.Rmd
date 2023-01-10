@@ -1,0 +1,706 @@
+---
+title: JSIS Task Force analysis
+author:
+- "[Phil Neff](https://github.com/philneff)"
+date: 10 January, 2021
+output:
+    html_document:
+        html_preview: true
+        toc: true
+        toc_depth: 3
+        toc_float: true
+        code_folding: hide
+---
+
+```{r import, message = FALSE, warning = FALSE}
+
+pacman::p_load(tidyverse, lubridate, here, skimr, yaml, ggplot2, ggalt, gplots,
+               sf, rnaturalearth, rnaturalearthdata, maps, tools, RColorBrewer
+               )
+
+inputfile <- here::here("write/input/uw-chr-i213-public.csv.gz")
+
+i213 <- read_delim(
+    inputfile, delim = "|", 
+    col_types = cols(
+        # .default                     = col_character(),
+        source                       = col_character(),
+        sex                          = col_character(),
+        cmplxn                       = col_character(),
+        country_of_citizenship       = col_factor(),
+        year                         = col_double(),
+        month                        = col_double(),
+        day                          = col_double(),
+        hour                         = col_double(),
+        minute                       = col_double(),
+        fy                           = col_double(),
+        age                          = col_double(),
+        accompanied_juvenile_flag    = col_double(),
+        unaccompanied_juvenile_flag  = col_double(),
+        custody_redetermination_flag = col_double()
+))
+
+i213 <- i213 %>%
+  mutate(across(where(is.character), ~ na_if(.,"")))
+
+# Only looking at records obtained via ICE, which include Border Patrol/CBP apprehensions
+i213 <- i213 %>%
+    filter(source != "cbp")
+
+```
+
+
+## Data overview
+
+```{r skim, message = FALSE, warning = FALSE}
+
+i213 %>% skimr::skim()
+
+```
+
+```{r state}
+
+state <- i213 %>%
+   count(state, sort = TRUE)
+
+state
+
+i213 <- i213 %>%
+    filter(state %in% c("OR", "WA"))
+
+```
+
+```{r year, message = FALSE, warning = FALSE}
+
+
+ann <- i213 %>%
+    filter(state %in% c("OR", "WA")) %>% 
+    count(state, year) %>%
+    pivot_wider(names_from = state, values_from = n,
+                values_fill = list(n = 0)) %>%
+    arrange(year)
+
+ann
+
+```
+
+```{r weekday, message = FALSE, warning = FALSE}
+
+day_of_week <- function(year, month, day) {
+    dt <- as.Date(paste(year, month, day, sep = "-"))
+    wd <- weekdays(dt, abbreviate = TRUE)
+    wd <- as.factor(wd)
+    fct_relevel(wd, c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"))
+}
+
+wkdy <- i213 %>%
+    filter(state %in% c("OR", "WA")) %>% 
+    filter(!is.na(day)) %>%
+    mutate(weekday = day_of_week(year, month, day)) %>%
+    count(state, weekday) %>%
+    pivot_wider(names_from = state, values_from = n)
+
+wkdy
+
+```
+
+```{r year_month}
+
+# Change to include year?
+
+mth <- i213 %>%
+    filter(state %in% c("OR", "WA")) %>% 
+    filter(!is.na(month)) %>%
+    count(state, month) %>%
+    pivot_wider(names_from = month, values_from = n)
+
+mth
+
+```
+
+
+```{r time_of_day}
+
+time <- i213 %>%
+    filter(state %in% c("OR", "WA")) %>% 
+    filter(!is.na(hour)) %>%
+    count(state, hour) %>%
+    pivot_wider(names_from = hour, values_from = n)
+
+time
+
+```
+
+## Demographics: Overview
+
+"Complexion" values are decoded following ["The Border's Long Shadow"](https://www.aclumich.org/en/publications/borders-long-shadow) (ACLU of Michigan, 2021).
+
+```{r demographics, message = FALSE, warning = FALSE}
+
+i213 %>% 
+    filter(state %in% c("OR", "WA")) %>% 
+  group_by(state, country_of_citizenship) %>% 
+  count(country_of_citizenship, sort=TRUE) %>% 
+    pivot_wider(names_from = state, values_from = n)
+  
+i213 %>%
+    filter(state %in% c("OR", "WA")) %>% 
+    filter(!is.na(age), !is.na(sex)) %>%
+    mutate(age_group = cut(age,
+                           breaks = c(0, 18, 25, 40, 60, Inf),
+                           right = FALSE)) %>%
+    group_by(state, sex, age_group) %>% 
+    count(sex, age_group) %>%
+    pivot_wider(names_from = sex, values_from = n)
+
+good_values <- c("ALBINO",
+                 "BLACK",
+                 "DARK BROWN",
+                 "DARK",
+                 "FAIR",
+                 "LIGHT BROWN",
+                 "LIGHT",
+                 "MEDIUM BROWN",
+                 "MEDIUM",
+                 "OLIVE",
+                 "RUDDY",
+                 "SALLOW",
+                 "YELLOW")
+
+i213 <- i213 %>%
+          mutate(cmplxn = case_when(
+            cmplxn %in% good_values ~ cmplxn,
+            is.na(cmplxn) ~ NA_character_,
+            TRUE ~ "OTHER"))
+
+i213 %>% 
+  filter(state %in% c("OR", "WA")) %>% 
+  group_by(state, cmplxn) %>% 
+  count(cmplxn, sort = TRUE)
+
+```
+
+```{r at_near, message = FALSE, warning = FALSE}
+
+i213 %>% count(at_near, sort = TRUE) %>% 
+   filter(n >= 20)
+
+```
+
+
+```{r loc_code, message = FALSE, warning = FALSE}
+
+i213 %>% count(location_code, sort = TRUE) %>% 
+   filter(n >= 20)
+
+i213$office <- str_match(i213$location_code, "SEA|POO|BLW|SPW")
+
+loc_codes <- i213 %>% 
+  group_by(location_code) %>% 
+  summarize(n = n()) %>% 
+  arrange(desc(n)) %>% 
+  na.omit()
+
+loc_codes_county <- i213 %>% 
+  group_by(location_code) %>% 
+  summarize(n_counties = n_distinct(county),
+            n_state = n_distinct(state)) %>% 
+  arrange(desc(n_counties)) %>% 
+  na.omit()
+
+top <- unlist(loc_codes[1:20, 'location_code'])
+
+```
+
+## "Method of Location/Apprehension"
+
+```{r method_location_apprehension_all, message = FALSE, warning = FALSE}
+
+i213 %>%
+  filter(!is.na(method_location_apprehension)) %>% 
+  group_by(state, method_location_apprehension) %>% 
+  count(method_location_apprehension, sort = TRUE)
+
+```
+
+```{r method_location_apprehension, message=FALSE, warning=FALSE}
+
+i213 <- i213 %>% 
+  mutate(method_short = case_when(
+           str_detect(method_location_apprehension, "PB") ~ "PB",
+           str_detect(method_location_apprehension, "CFD") ~ "CFD",
+           str_detect(method_location_apprehension, "CST") ~ "CST",
+           str_detect(method_location_apprehension, "CLC") ~ "CLC",
+           str_detect(method_location_apprehension, "NCA") ~ "NCA",
+           str_detect(method_location_apprehension, "LEA") ~ "LEA",
+           str_detect(method_location_apprehension, "OA") ~ "OA",
+           str_detect(method_location_apprehension, "OTF") ~ "OTF",
+           str_detect(method_location_apprehension, "TCB") ~ "TCB",
+           str_detect(method_location_apprehension, "ISP") ~ "ISP",
+           str_detect(method_location_apprehension, "L") ~ "L",
+           str_detect(method_location_apprehension, "O|0") ~ "O",
+           is.na(method_location_apprehension) ~ NA_character_,
+            TRUE ~ NA_character_),
+         method_verbose = case_when(
+           str_detect(method_location_apprehension, "PB") ~ "Patrol Border",
+           str_detect(method_location_apprehension, "CFD") ~ "CAP Federal",
+           str_detect(method_location_apprehension, "CST") ~ "CAP State",
+           str_detect(method_location_apprehension, "CLC") ~ "CAP Local",
+           str_detect(method_location_apprehension, "NCA") ~ "Non-Custodial Arrest",
+           str_detect(method_location_apprehension, "LEA") ~ "Law Enforcement Assist",
+           str_detect(method_location_apprehension, "OA") ~ "Other Agency",
+           str_detect(method_location_apprehension, "OTF") ~ "Task Force",
+           str_detect(method_location_apprehension, "TCB") ~ "Transportation Check",
+           str_detect(method_location_apprehension, "ISP") ~ "Inspection",
+           str_detect(method_location_apprehension, "L") ~ "Located",
+           str_detect(method_location_apprehension, "O|0") ~ "Other",
+           is.na(method_location_apprehension) ~ NA_character_,
+            TRUE ~ NA_character_),
+         method_int_border = case_when(
+           str_detect(method_location_apprehension, "PB") ~ "Border",
+           str_detect(method_location_apprehension, "CFD") ~ "Interior",
+           str_detect(method_location_apprehension, "CST") ~ "Interior",
+           str_detect(method_location_apprehension, "CLC") ~ "Interior",
+           str_detect(method_location_apprehension, "NCA") ~ "Interior",
+           str_detect(method_location_apprehension, "LEA") ~ "Interior",
+           str_detect(method_location_apprehension, "OA") ~ "Interior",
+           str_detect(method_location_apprehension, "OTF") ~ "Interior",
+           str_detect(method_location_apprehension, "TCB") ~ "Interior",
+           str_detect(method_location_apprehension, "ISP") ~ "Border",
+           str_detect(method_location_apprehension, "L") ~ "Interior",
+           str_detect(method_location_apprehension, "O|0") ~ "Other",
+           is.na(method_location_apprehension) ~ NA_character_,
+            TRUE ~ NA_character_))
+
+i213$date <- as.Date(i213$date)
+
+data <- i213 %>%
+  select(date, state, source, method_location_apprehension, method_short, method_verbose, method_int_border, office, county) %>%
+  filter(!is.na(state),
+         date >= '2019-01-01',
+         source == 'ice')
+
+data$month <- as.Date(cut(data$date, breaks='month'))
+
+p1 <- data %>% 
+  ggplot(aes(x = month)) +
+  geom_bar() +
+  scale_x_date(labels = scales::date_format("%b"),
+               breaks = "1 month") +
+  facet_wrap(~method_short) +
+  theme(axis.text.x = element_text(angle = 90,
+                                   vjust = 0.5,
+                                   hjust = 1))
+
+p1
+
+p2 <- data %>%
+  ggplot(aes(x = method_short)) +
+  geom_bar(aes(fill= method_short)) +
+  facet_wrap(~office) +
+  theme(axis.text.x = element_text(angle = 90,
+                                   vjust = 0.5,
+                                   hjust = 1))
+
+p2
+
+priority_counties <- read_yaml('../../shared/hand/priority_counties.yaml')
+priority_counties <- append(priority_counties, 'Whatcom County')
+
+p3 <- data %>% 
+  filter(county %in% priority_counties) %>% 
+  ggplot(aes(x = county, fill= method_verbose)) +
+  geom_bar(position = "fill") +
+  scale_y_continuous() +
+  theme(axis.text.x = element_text(angle = 90,
+                                   vjust = 0.5,
+                                   hjust = 1))
+
+p3
+
+p4 <- data %>% 
+  filter(!county %in% priority_counties) %>%
+  ggplot(aes(x = county, fill= method_verbose)) +
+  geom_bar(position = "fill") +
+  scale_y_continuous() +
+  theme(axis.text.x = element_text(angle = 90,
+                                   vjust = 0.5,
+                                   hjust = 1))
+
+p4
+
+p5 <- data %>% 
+  filter(county %in% priority_counties) %>%
+  ggplot(aes(x = county, fill= method_int_border)) +
+  geom_bar() +
+  theme(axis.text.x = element_text(angle = 90,
+                                   vjust = 0.5,
+                                   hjust = 1))
+
+p5
+
+```
+
+```{r method_location_apprehension_city_wa, message = FALSE, warning = FALSE}
+
+data <- i213 %>%
+  select(date, state, source, method_location_apprehension, method_short, method_verbose, kww_in_force, office, county, at_near) %>%
+  filter(!is.na(state),
+         state == 'WA',
+         date >= '2019-01-01',
+         source == 'ice')
+
+at_near_clc <- data %>% group_by(at_near, method_short) %>% 
+  summarise(n = n()) %>% 
+  mutate(percent = n/sum(n)) %>% 
+  filter(method_short == 'CLC')
+
+at_near_clc <- at_near_clc[order(-at_near_clc$n),]
+
+head(at_near_clc, 10)
+
+at_near_assist <- data %>% group_by(at_near, method_short) %>% 
+  summarise(n = n()) %>% 
+  mutate(percent = n/sum(n)) %>% 
+  filter(method_short %in% c('LEA', 'OA', 'OTF'))
+
+at_near_assist <- at_near_assist[order(-at_near_assist$n),]
+
+```
+
+```{r method_location_apprehension_city_or, message = FALSE, warning = FALSE}
+
+data <- i213 %>%
+  select(date, state, source, method_location_apprehension, method_short, method_verbose, kww_in_force, office, county, at_near) %>%
+  filter(!is.na(state),
+         state == 'OR',
+         date >= '2019-01-01',
+         source == 'ice')
+
+at_near_clc <- data %>% group_by(at_near, method_short) %>% 
+  summarise(n = n()) %>% 
+  mutate(percent = n/sum(n)) %>% 
+  filter(method_short == 'CLC')
+
+at_near_clc <- at_near_clc[order(-at_near_clc$n),]
+
+head(at_near_clc, 10)
+
+at_near_assist <- data %>% group_by(at_near, method_short) %>% 
+  summarise(n = n()) %>% 
+  mutate(percent = n/sum(n)) %>% 
+  filter(method_short %in% c('LEA', 'OA', 'OTF'))
+
+at_near_assist <- at_near_assist[order(-at_near_assist$n),]
+
+```
+
+```{r method_location_apprehension_or, message = FALSE, warning = FALSE}
+
+data <- i213 %>%
+  select(date, state, source, method_location_apprehension, method_short, method_verbose, kww_in_force, office, county) %>%
+  filter(!is.na(state),
+         date >= '2019-01-01',
+         source == 'ice')
+
+data$month <- as.Date(cut(data$date, breaks='month'))
+
+p1 <- data %>% 
+  filter(!is.na(state),
+         state == 'OR') %>% 
+  ggplot(aes(x = month)) +
+  geom_bar() +
+  scale_x_date(labels = scales::date_format("%b"),
+               breaks = "1 month") +
+  facet_wrap(~method_short) +
+  theme(axis.text.x = element_text(angle = 90,
+                                   vjust = 0.5,
+                                   hjust = 1))
+
+p1
+
+p2 <- data %>%
+    filter(!is.na(state),
+         state == 'OR') %>% 
+  ggplot(aes(x = method_short)) +
+  geom_bar(aes(fill= method_short)) +
+  facet_wrap(~office) +
+  theme(axis.text.x = element_text(angle = 90,
+                                   vjust = 0.5,
+                                   hjust = 1))
+
+p2
+
+p3 <- data %>%
+    filter(!is.na(state),
+         state == 'OR') %>% 
+  ggplot(aes(x = county, fill= method_verbose)) +
+  geom_bar() +
+  theme(axis.text.x = element_text(angle = 90,
+                                   vjust = 0.5,
+                                   hjust = 1))
+
+p3
+
+p4 <- data %>%
+    filter(!is.na(state),
+         state == 'OR') %>% 
+  ggplot(aes(x = county, fill= method_verbose)) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  theme(axis.text.x = element_text(angle = 90,
+                                   vjust = 0.5,
+                                   hjust = 1))
+
+p4
+
+p5 <- data %>%
+  filter(!is.na(state),
+           state %in% c("OR", "WA")) %>% 
+  ggplot(aes(x = state, fill= method_verbose)) +
+  geom_bar() +
+  theme(axis.text.x = element_text(angle = 90,
+                                   vjust = 0.5,
+                                   hjust = 1))
+
+p5
+
+p6 <- data %>%
+    filter(!is.na(state),
+           state %in% c("OR", "WA")) %>% 
+  ggplot(aes(x = state, fill= method_verbose)) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  theme(axis.text.x = element_text(angle = 90,
+                                   vjust = 0.5,
+                                   hjust = 1))
+
+p6
+
+
+```
+
+### Mapping "Method of Location/Apprehension"
+
+```{r method_location_apprehension_map, message = FALSE, warning = FALSE}
+
+sites <- i213 %>% select(lon, lat, office, method_short) %>% 
+  na.omit()
+
+sites <- st_as_sf(sites, coords = c("lon", "lat"),
+                   crs = 4326, agr = "constant")
+
+sites <- cbind(sites, st_coordinates(sites))
+
+st_crs(states) <- 4326
+st_crs(states$geom) <- 4326
+st_crs(sites) <- 4326
+st_crs(sites$geometry) <- 4326
+
+m1 <- ggplot() +
+    geom_sf(data = world) +
+    geom_sf(data = states, fill = NA) + 
+    geom_jitter(data = sites, size = 2, shape = 23, width = .1, height = .1, aes(x = X, y = Y, fill = method_short)) +
+    pnw_coords +
+    facet_wrap(~method_short)
+    ggtitle('I-213 forms by approx "at_near" latitude/longitude')
+
+m1
+
+```
+
+## Demographics: Zooming in
+
+### Complexion by location and enforcement type
+
+We can also examine various demographic characteristics in comparison with the above categories; note below the only "Method of Location/Apprehension" category with a majority of apprehensions reported as being of people with "Fair" or "Light" complexion is "ISP" or "Inspection" at authorized points of entry.
+
+```{r cmplxn_by_loc_meth, message=FALSE, warning=FALSE}
+
+p1 <- i213 %>%
+  ggplot(aes(x = cmplxn, fill= cmplxn)) +
+  geom_bar() +
+  facet_wrap(~office) +
+  theme(axis.text.x = element_text(angle = 90,
+                                   vjust = 0.5,
+                                   hjust = 1))
+
+p1
+
+p2 <- i213 %>%
+  ggplot(aes(x = cmplxn, fill= cmplxn)) +
+  geom_bar() +
+  facet_wrap(~method_short) +
+  theme(axis.text.x = element_text(angle = 90,
+                                   vjust = 0.5,
+                                   hjust = 1))
+
+p2
+
+```
+
+### Country of origin
+
+A few views of most common "Country of Origin" categories. All others have <50 records in collection.
+
+```{r country_by_loc_meth, message=FALSE, warning=FALSE}
+
+i213 <- i213 %>% 
+  mutate(country_short = case_when(
+         str_detect(country_of_citizenship, "MEXICO") ~ "MEXICO",
+         str_detect(country_of_citizenship, "GUATEMALA") ~ "GUATEMALA",
+         str_detect(country_of_citizenship, "INDIA") ~ "INDIA",
+         str_detect(country_of_citizenship, "HONDURAS") ~ "HONDURAS",
+         str_detect(country_of_citizenship, "EL SALVADOR") ~ "EL SALVADOR",
+         str_detect(country_of_citizenship, "CHINA") ~ "CHINA",
+         is.na(country_of_citizenship) ~ NA_character_,
+         TRUE ~ "ALL OTHERS"))
+
+p1 <- i213 %>%
+  ggplot(aes(x = country_short, fill= country_short)) +
+  geom_bar() +
+  facet_wrap(~office) +
+  theme(axis.text.x = element_text(angle = 90,
+                                   vjust = 0.5,
+                                   hjust = 1))
+
+p1
+
+p2 <- i213 %>%
+  ggplot(aes(x = country_short, fill= country_short)) +
+  geom_bar() +
+  facet_wrap(~method_short) +
+  theme(axis.text.x = element_text(angle = 90,
+                                   vjust = 0.5,
+                                   hjust = 1))
+
+p2
+
+p3 <- i213 %>% 
+  filter(county %in% priority_counties) %>% 
+  ggplot(aes(x = county, fill= country_short)) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  theme(axis.text.x = element_text(angle = 90,
+                                   vjust = 0.5,
+                                   hjust = 1))
+
+p3
+
+i213$month <- as.Date(cut(i213$date, breaks='month'))
+
+p4 <- i213 %>% 
+  filter(!is.na(state),
+       state == 'WA',
+       date >= '2019-01-01',
+       source == 'ice') %>% 
+  ggplot(aes(x = month)) +
+  geom_bar() +
+  scale_x_date(labels = scales::date_format("%b"),
+               breaks = "1 month") +
+  facet_wrap(~country_short) +
+  theme(axis.text.x = element_text(angle = 90,
+                                   vjust = 0.5,
+                                   hjust = 1))
+
+p4
+
+```
+
+A closer look at Whatcom County data:
+
+```{r whatcom_deep_dive, message=FALSE, warning=FALSE}
+
+p5 <- i213 %>% 
+  filter(!is.na(state),
+       state == 'WA',
+       date >= '2019-01-01',
+       source == 'ice',
+       county == 'Whatcom County') %>% 
+  ggplot(aes(x = country_short, fill= country_short)) +
+  geom_bar() +
+  facet_wrap(~method_int_border) +
+  theme(axis.text.x = element_text(angle = 90,
+                                   vjust = 0.5,
+                                   hjust = 1))
+
+p5
+
+p5_data <- i213 %>% 
+  filter(!is.na(state),
+       state == 'WA',
+       date >= '2019-01-01',
+       source == 'ice',
+       county == 'Whatcom County') %>% 
+  group_by(method_verbose, country_of_citizenship) %>%
+  summarise(n = n())
+
+# write_csv(p5_data, '../output/whatcom-method-citizenship.csv')
+
+```
+
+## Mapping "mentions_*"
+
+A few passes at mapping records that mention keywords.
+
+Note I-213s with narratives mentioning keyword "courthouse" include high concentration in central WA; see 2019 UWCHR [report on courthouse arrests in WA state](https://jsis.washington.edu/humanrights/2019/10/16/ice-cbp-courthouse-arrests/).
+
+```{r mentions_courthouse_map, message=FALSE, warning=FALSE}
+
+data <- i213 %>% 
+  group_by(mentions_courthouse, lon, lat) %>% 
+  summarise(n = n()) %>% 
+  filter(mentions_courthouse == TRUE) %>% 
+  na.omit()
+
+data <- st_as_sf(data, coords = c("lon", "lat"),
+                  crs = 4326, agr = "constant")
+
+ggplot(data = world) +
+    geom_sf() +
+    geom_sf(data = states, fill = NA) +
+    geom_sf(data = data, aes(size=n), shape = 21, fill = "red", alpha=.5) +
+    pnw_coords +
+    ggtitle('I-213 forms mentioning "courthouse" by "at_near" latitude/longitude')
+
+```
+
+```{r mentions_juvenile_map, message=FALSE, warning=FALSE}
+
+data <- i213 %>% 
+  group_by(mentions_juvenile, lon, lat) %>% 
+  summarise(n = n()) %>% 
+  filter(mentions_juvenile == TRUE) %>% 
+  na.omit()
+
+data <- st_as_sf(data, coords = c("lon", "lat"),
+                  crs = 4326, agr = "constant")
+
+ggplot(data = world) +
+    geom_sf() +
+    geom_sf(data = states, fill = NA) +
+    geom_sf(data = data, aes(size=n), shape = 21, fill = "red", alpha=.5) +
+    pnw_coords +
+    ggtitle('I-213 forms mentioning "juvenile" by "at_near" latitude/longitude')
+
+```
+
+```{r mentions_bus_map, message=FALSE, warning=FALSE}
+
+data <- i213 %>% 
+  group_by(mentions_bus, lon, lat) %>% 
+  summarise(n = n()) %>% 
+  filter(mentions_bus == TRUE) %>% 
+  na.omit()
+
+data <- st_as_sf(data, coords = c("lon", "lat"),
+                  crs = 4326, agr = "constant")
+
+ggplot(data = world) +
+    geom_sf() +
+    geom_sf(data = states, fill = NA) +
+    geom_sf(data = data, aes(size=n), shape = 21, fill = "red", alpha=.5) +
+    pnw_coords +
+    ggtitle('I-213 forms mentioning "bus" by "at_near" latitude/longitude')
+
+```
