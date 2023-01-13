@@ -12,6 +12,16 @@ output:
         code_folding: hide
 ---
 
+## To-do:
+
+- Add new keyword search fields
+  - `mentions_1326_reentry`
+  - `mentions_no_criminal_history`
+- Better demographic breakdown, just OR values
+- `method_location_apprehension` breakdown
+- `location_code` breakdown
+
+
 ```{r import, message = FALSE, warning = FALSE}
 
 pacman::p_load(tidyverse, lubridate, here, skimr, yaml, ggplot2, ggalt, gplots,
@@ -48,6 +58,7 @@ i213 <- i213 %>%
     filter(source != "cbp")
 
 ```
+
 
 
 ## Data overview
