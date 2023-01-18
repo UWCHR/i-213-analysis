@@ -1634,7 +1634,7 @@ i213 &lt;- i213 %&gt;%
 </tr>
 <tr class="odd">
 <td align="left">Number of columns</td>
-<td align="left">62</td>
+<td align="left">64</td>
 </tr>
 <tr class="even">
 <td align="left">_______________________</td>
@@ -1658,7 +1658,7 @@ i213 &lt;- i213 %&gt;%
 </tr>
 <tr class="odd">
 <td align="left">logical</td>
-<td align="left">25</td>
+<td align="left">27</td>
 </tr>
 <tr class="even">
 <td align="left">numeric</td>
@@ -1979,11 +1979,11 @@ i213 &lt;- i213 %&gt;%
 <p><strong>Variable type: logical</strong></p>
 <table>
 <colgroup>
-<col width="34%" />
-<col width="13%" />
-<col width="18%" />
+<col width="36%" />
+<col width="12%" />
+<col width="17%" />
 <col width="6%" />
-<col width="27%" />
+<col width="26%" />
 </colgroup>
 <thead>
 <tr class="header">
@@ -2108,11 +2108,25 @@ i213 &lt;- i213 %&gt;%
 <td align="left">FAL: 3717, TRU: 170</td>
 </tr>
 <tr class="odd">
+<td align="left">mentions_no_criminal_history</td>
+<td align="right">0</td>
+<td align="right">1.00</td>
+<td align="right">0.05</td>
+<td align="left">FAL: 3699, TRU: 188</td>
+</tr>
+<tr class="even">
 <td align="left">mentions_police</td>
 <td align="right">0</td>
 <td align="right">1.00</td>
 <td align="right">0.19</td>
 <td align="left">FAL: 3164, TRU: 723</td>
+</tr>
+<tr class="odd">
+<td align="left">mentions_previous_deport</td>
+<td align="right">0</td>
+<td align="right">1.00</td>
+<td align="right">0.23</td>
+<td align="left">FAL: 2989, TRU: 898</td>
 </tr>
 <tr class="even">
 <td align="left">mentions_prison</td>
@@ -2585,6 +2599,246 @@ i213 %&gt;%
 ##  9 OR    MEDIUM BROWN   113
 ## 10 OR    LIGHT BROWN     43
 ## # … with 13 more rows</code></pre>
+</div>
+<div id="or-mentions-keywords" class="section level2">
+<h2>OR “mentions” keywords</h2>
+<pre class="r"><code>i213 %&gt;% 
+  filter(state == &quot;OR&quot;) %&gt;% 
+  dplyr::select(contains(&quot;mentions&quot;)) %&gt;% 
+  skimr::skim()</code></pre>
+<table>
+<caption>Data summary</caption>
+<tbody>
+<tr class="odd">
+<td align="left">Name</td>
+<td align="left">Piped data</td>
+</tr>
+<tr class="even">
+<td align="left">Number of rows</td>
+<td align="left">966</td>
+</tr>
+<tr class="odd">
+<td align="left">Number of columns</td>
+<td align="left">25</td>
+</tr>
+<tr class="even">
+<td align="left">_______________________</td>
+<td align="left"></td>
+</tr>
+<tr class="odd">
+<td align="left">Column type frequency:</td>
+<td align="left"></td>
+</tr>
+<tr class="even">
+<td align="left">logical</td>
+<td align="left">25</td>
+</tr>
+<tr class="odd">
+<td align="left">________________________</td>
+<td align="left"></td>
+</tr>
+<tr class="even">
+<td align="left">Group variables</td>
+<td align="left">None</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Variable type: logical</strong></p>
+<table style="width:100%;">
+<colgroup>
+<col width="37%" />
+<col width="12%" />
+<col width="18%" />
+<col width="6%" />
+<col width="24%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">skim_variable</th>
+<th align="right">n_missing</th>
+<th align="right">complete_rate</th>
+<th align="right">mean</th>
+<th align="left">count</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">mentions_airport</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0.03</td>
+<td align="left">FAL: 938, TRU: 28</td>
+</tr>
+<tr class="even">
+<td align="left">mentions_anonymous_tip</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0.00</td>
+<td align="left">FAL: 962, TRU: 4</td>
+</tr>
+<tr class="odd">
+<td align="left">mentions_border_patrol</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0.11</td>
+<td align="left">FAL: 863, TRU: 103</td>
+</tr>
+<tr class="even">
+<td align="left">mentions_bus</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0.01</td>
+<td align="left">FAL: 956, TRU: 10</td>
+</tr>
+<tr class="odd">
+<td align="left">mentions_corrections</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0.23</td>
+<td align="left">FAL: 739, TRU: 227</td>
+</tr>
+<tr class="even">
+<td align="left">mentions_courthouse</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0.04</td>
+<td align="left">FAL: 930, TRU: 36</td>
+</tr>
+<tr class="odd">
+<td align="left">mentions_database</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0.35</td>
+<td align="left">FAL: 625, TRU: 341</td>
+</tr>
+<tr class="even">
+<td align="left">mentions_detainer</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0.42</td>
+<td align="left">FAL: 561, TRU: 405</td>
+</tr>
+<tr class="odd">
+<td align="left">mentions_family_unit</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0.01</td>
+<td align="left">FAL: 961, TRU: 5</td>
+</tr>
+<tr class="even">
+<td align="left">mentions_greyhound</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0.00</td>
+<td align="left">FAL: 966</td>
+</tr>
+<tr class="odd">
+<td align="left">mentions_hsi</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0.04</td>
+<td align="left">FAL: 924, TRU: 42</td>
+</tr>
+<tr class="even">
+<td align="left">mentions_jail</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0.64</td>
+<td align="left">TRU: 615, FAL: 351</td>
+</tr>
+<tr class="odd">
+<td align="left">mentions_juvenile</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0.03</td>
+<td align="left">FAL: 936, TRU: 30</td>
+</tr>
+<tr class="even">
+<td align="left">mentions_license_plate</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0.03</td>
+<td align="left">FAL: 937, TRU: 29</td>
+</tr>
+<tr class="odd">
+<td align="left">mentions_no_criminal_history</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0.02</td>
+<td align="left">FAL: 944, TRU: 22</td>
+</tr>
+<tr class="even">
+<td align="left">mentions_police</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0.24</td>
+<td align="left">FAL: 736, TRU: 230</td>
+</tr>
+<tr class="odd">
+<td align="left">mentions_previous_deport</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0.27</td>
+<td align="left">FAL: 701, TRU: 265</td>
+</tr>
+<tr class="even">
+<td align="left">mentions_prison</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0.30</td>
+<td align="left">FAL: 681, TRU: 285</td>
+</tr>
+<tr class="odd">
+<td align="left">mentions_probation_office</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0.01</td>
+<td align="left">FAL: 954, TRU: 12</td>
+</tr>
+<tr class="even">
+<td align="left">mentions_secure_comm</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0.08</td>
+<td align="left">FAL: 893, TRU: 73</td>
+</tr>
+<tr class="odd">
+<td align="left">mentions_sheriff</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0.10</td>
+<td align="left">FAL: 869, TRU: 97</td>
+</tr>
+<tr class="even">
+<td align="left">mentions_state_patrol</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0.00</td>
+<td align="left">FAL: 965, TRU: 1</td>
+</tr>
+<tr class="odd">
+<td align="left">mentions_surveillance</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0.09</td>
+<td align="left">FAL: 875, TRU: 91</td>
+</tr>
+<tr class="even">
+<td align="left">mentions_task_force</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0.02</td>
+<td align="left">FAL: 951, TRU: 15</td>
+</tr>
+<tr class="odd">
+<td align="left">mentions_traffic</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0.03</td>
+<td align="left">FAL: 935, TRU: 31</td>
+</tr>
+</tbody>
+</table>
 </div>
 
 
