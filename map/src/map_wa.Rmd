@@ -243,7 +243,7 @@ Here we calculate and map rate of I-213 apprehensions per capita, using ACS 5 ye
 
 wa_pop <- read.delim(here::here('map', 'input', 'wa-pop.csv'), sep=',')
 
-wa_total_pop <- wa_pop %>% 
+wa_total_pop <- wa_pop %>%  
   filter(name == "washington")
 
 wa_total_pop <- wa_total_pop$estimate
