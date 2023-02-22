@@ -66,7 +66,7 @@ world <- ne_countries(scale = "medium", returnclass = "sf")
 
 states <- st_as_sf(map("state", crs = 4326, plot = FALSE, fill = TRUE))
 
-states <- cbind(states, st_coordinates(st_centroid(states)))
+states <- cbind(states, st_coordinates(st_point_on_surface(states)))
 states$ID <- toTitleCase(as.character(states$ID))
 
 wa <- states %>% 
@@ -143,7 +143,7 @@ p2 <- ggplot(data = wa) +
     geom_sf(data = wa, fill = NA) +
     geom_sf(data = counties, fill = NA) + 
     geom_sf(data = data_at_near, aes(size=n), shape = 21, fill = "red", alpha=.5) +
-    geom_sf_label_repel(data = subset(data_at_near, rank > (nrow(data_at_near) - 5)),
+    ggsflabel::geom_sf_label_repel(data = subset(data_at_near, rank > (nrow(data_at_near) - 5)),
                         aes(label = paste(at_near, n, sep=': '),
                             background = NA),
                         force = 50,
@@ -193,7 +193,7 @@ m1 <- ggplot(data = wa) +
     geom_sf() +
     geom_sf(data = wa, fill = NA) + 
     geom_sf(data = counties, aes(fill = n)) +
-    geom_sf_label_repel(data = study_counties, aes(label = str_to_title(county)), 
+    ggsflabel::geom_sf_label_repel(data = study_counties, aes(label = str_to_title(county)), 
                         nudge_x = -.33,
                         nudge_y = .33,
                         force = 75) +
@@ -284,7 +284,7 @@ wa_pop_prior_plus <- wa_pop_prior_plus / wa_total_pop
 
 data <- merge(counties, wa_pop, by=c('county', 'state'))
 
-data$i_213_per_capita <- data$n / data$estimate
+data$i_213_per_capita <- data$n / data$estimate * 100000
 
 # Checking # of forms in priority counties
 forms_wa <- data %>%
@@ -306,13 +306,14 @@ m1 <- ggplot(data = wa) +
     geom_sf() +
     geom_sf(data = wa, fill = NA) + 
     geom_sf(data = data, aes(fill = i_213_per_capita)) +
-    scale_fill_viridis_c(trans = "sqrt", alpha = .4, na.value = gray(.9)) +
     wa_coords +
-    geom_sf_label_repel(data = study_counties, aes(label = str_to_title(county), background = NA), force = 100) +
+    ggsflabel::geom_sf_label_repel(data = study_counties, aes(label = str_to_title(county), background = NA), force = 100) +
     labs(x = NULL, y = NULL, 
        title = "Per capita I-213 apprehensions by county",
        subtitle = paste(min_date, max_date, sep = ' to '),
-       caption = "UW Center for Human Rights\n2014-2018 population estimate via ACS")
+       caption = "UW Center for Human Rights\n2014-2018 population estimate via ACS") +
+  guides(fill=guide_colorbar(title="Arrests per\n100,000")) +
+    scale_fill_viridis_c(trans = "sqrt", alpha = .4, na.value = gray(.9))
 
 m1
 
@@ -336,7 +337,7 @@ to_print <- data %>%
 st_geometry(to_print) <- NULL
 
 total_arrests <- sum(to_print$n, na.rm=TRUE)
-wa_per_capita <- total_arrests / wa_total_pop
+wa_per_capita <- total_arrests / wa_total_pop * 100000
 
 to_print <- to_print %>% 
   add_row(county = 'Washington state total',
