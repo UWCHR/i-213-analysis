@@ -2,7 +2,7 @@
 title: I-213 descriptive analysis
 author:
 - "[Phil Neff](https://github.com/philneff)"
-date: 22 September, 2021
+date: 23 June, 2023
 output:
     html_document:
         html_preview: true
@@ -47,6 +47,8 @@ i213 <- read_delim(
 As part of its ["Human Rights At Home"](https://jsis.washington.edu/humanrights/projects/human-rights-at-home/) and ["Immigrant Rights Observatory"](https://jsis.washington.edu/humanrights/projects/human-rights-at-home/immigrant-rights-observatory/) research initiatives, the University of Washington Center for Human Rights (UWCHR) has obtained a collection of I-213 "Record of Deportable/Inadmissible Alien" forms via Freedom of Information Act (FOIA) requests to the US Department of Homeland Security (DHS). These internal forms documenting apprehensions by US Immigration and Customs Enforcement (ICE) and Customs and Border Protection (CBP) are an important source of qualitative and quantitative information regarding immigration enforcement practices and patterns.
 
 Under FOIA, UWCHR initially requested all I-213s produced by both CBP and ICE in the state of Washington from 2012-2017; when the agencies failed to adhere to the requirements of FOIA—first claiming privacy waivers were needed for every individual form and then claiming that as law enforcement agencies, they were exempt from providing such records—UWCHR sued in September 2018. UWCHR underwent separate settlement negotiations with each sub-agency. In these discussions, CBP agreed to provide a sample of all documents produced by staff in the agency’s Blaine and Spokane sectors from January 1, 2012 to September 30, 2017; and ICE agreed to provide copies of all documents produced from January 1, 2019 to March 31, 2020 by staff from the agency’s Seattle field office.
+
+[Second lawsuit details here]
 
 The resulting PDF forms were scraped and cleaned in a separate private repository developed by the Human Rights Data Analysis Group (HRDAG) and maintained by UWCHR. Cleaning and hand-coding of resulting data is ongoing; the following is a preliminary descriptive analysis of the collection. Maps of apprehension locations by I-213 `at_near` value and `at_near` county per capita were previously published for UWCHR's August 2021 report ["Protecting Immigrant Rights: Is Washington’s Law Working?"](https://jsis.washington.edu/humanrights/2021/08/11/protecting-immigrant-rights-is-washingtons-law-working/), see: [https://uwchr.github.io/i-213-analysis/map-wa.html](https://uwchr.github.io/i-213-analysis/map-wa.html).
 
@@ -124,7 +126,7 @@ i213$date <- as.Date(i213$date)
 data <- i213 %>%
   select(date, source, installment) %>%
   filter(date >= '2019-01-01',
-         date <= '2020-03-31',
+         # date <= '2020-03-31',
          source == 'ice')
 
 data$month <- as.Date(cut(data$date, breaks='month'))
@@ -397,7 +399,7 @@ i213$date <- as.Date(i213$date)
 data <- i213 %>%
   select(date, state, source, method_location_apprehension, method_short, method_verbose, method_int_border, kww_in_force, office, county) %>%
   filter(!is.na(state),
-         date >= '2019-01-01',
+         date >= '2019-01-01' & date <= '2022-01-01',
          source == 'ice')
 
 data$month <- as.Date(cut(data$date, breaks='month'))
