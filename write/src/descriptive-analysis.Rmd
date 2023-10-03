@@ -42,13 +42,104 @@ i213 <- read_delim(
 
 ```
 
+```{r cleaning}
+
+i213 <- i213 %>%
+  mutate(across(where(is.character), ~ na_if(.,"")))
+
+i213$date <- as.Date(i213$date)
+i213$month <- as.Date(cut(i213$date, breaks='month'))
+
+i213 <- i213 %>% 
+  mutate(lawsuit = case_when(
+           str_detect(installment, "2023") ~ 2,
+            TRUE ~ 1))
+
+good_values <- c("ALBINO",
+                 "BLACK",
+                 "DARK BROWN",
+                 "DARK",
+                 "FAIR",
+                 "LIGHT BROWN",
+                 "LIGHT",
+                 "MEDIUM BROWN",
+                 "MEDIUM",
+                 "OLIVE",
+                 "RUDDY",
+                 "SALLOW",
+                 "YELLOW")
+
+i213 <- i213 %>% mutate(cmplxn = case_when(
+         cmplxn %in% good_values ~ cmplxn,
+         is.na(cmplxn) ~ NA_character_,
+         TRUE ~ "OTHER"))
+
+i213$office <- str_match(i213$location_code, "SEA|POO|BLW|SPW")
+
+i213 <- i213 %>% 
+  mutate(method_short = case_when(
+           str_detect(method_location_apprehension, "PB") ~ "PB",
+           str_detect(method_location_apprehension, "CFD") ~ "CFD",
+           str_detect(method_location_apprehension, "CST") ~ "CST",
+           str_detect(method_location_apprehension, "CLC") ~ "CLC",
+           str_detect(method_location_apprehension, "NCA") ~ "NCA",
+           str_detect(method_location_apprehension, "LEA") ~ "LEA",
+           str_detect(method_location_apprehension, "OA") ~ "OA",
+           str_detect(method_location_apprehension, "OTF") ~ "OTF",
+           str_detect(method_location_apprehension, "TCB") ~ "TCB",
+           str_detect(method_location_apprehension, "ISP") ~ "ISP",
+           str_detect(method_location_apprehension, "REP") ~ "REP",
+           str_detect(method_location_apprehension, "L") ~ "L",
+           str_detect(method_location_apprehension, "O|0") ~ "O",
+           is.na(method_location_apprehension) ~ NA_character_,
+            TRUE ~ NA_character_),
+         method_verbose = case_when(
+           str_detect(method_location_apprehension, "PB") ~ "Patrol Border",
+           str_detect(method_location_apprehension, "CFD") ~ "CAP Federal",
+           str_detect(method_location_apprehension, "CST") ~ "CAP State",
+           str_detect(method_location_apprehension, "CLC") ~ "CAP Local",
+           str_detect(method_location_apprehension, "NCA") ~ "Non-Custodial Arrest",
+           str_detect(method_location_apprehension, "LEA") ~ "Law Enforcement Assist",
+           str_detect(method_location_apprehension, "OA") ~ "Other Agency",
+           str_detect(method_location_apprehension, "OTF") ~ "Task Force",
+           str_detect(method_location_apprehension, "TCB") ~ "Transportation Check",
+           str_detect(method_location_apprehension, "ISP") ~ "Inspection",
+           str_detect(method_location_apprehension, "REP") ~ "Reprocessed",
+           str_detect(method_location_apprehension, "L") ~ "Located",
+           str_detect(method_location_apprehension, "O|0") ~ "Other",
+           is.na(method_location_apprehension) ~ NA_character_,
+            TRUE ~ NA_character_),
+         method_int_border = case_when(
+           str_detect(method_location_apprehension, "PB") ~ "Border",
+           str_detect(method_location_apprehension, "CFD") ~ "Interior",
+           str_detect(method_location_apprehension, "CST") ~ "Interior",
+           str_detect(method_location_apprehension, "CLC") ~ "Interior",
+           str_detect(method_location_apprehension, "NCA") ~ "Interior",
+           str_detect(method_location_apprehension, "LEA") ~ "Interior",
+           str_detect(method_location_apprehension, "OA") ~ "Interior",
+           str_detect(method_location_apprehension, "OTF") ~ "Interior",
+           str_detect(method_location_apprehension, "TCB") ~ "Interior",
+           str_detect(method_location_apprehension, "ISP") ~ "Border",
+           str_detect(method_location_apprehension, "L") ~ "Interior",
+           str_detect(method_location_apprehension, "REP") ~ "Other",
+           str_detect(method_location_apprehension, "O|0") ~ "Other",
+           is.na(method_location_apprehension) ~ NA_character_,
+            TRUE ~ NA_character_))
+
+i213 %>%
+    filter(source != "cbp",
+           lawsuit == 1) %>% 
+  nrow()
+
+```
+
 # Descriptive analysis of UWCHR I-213 collection
 
 As part of its ["Human Rights At Home"](https://jsis.washington.edu/humanrights/projects/human-rights-at-home/) and ["Immigrant Rights Observatory"](https://jsis.washington.edu/humanrights/projects/human-rights-at-home/immigrant-rights-observatory/) research initiatives, the University of Washington Center for Human Rights (UWCHR) has obtained a collection of I-213 "Record of Deportable/Inadmissible Alien" forms via Freedom of Information Act (FOIA) requests to the US Department of Homeland Security (DHS). These internal forms documenting apprehensions by US Immigration and Customs Enforcement (ICE) and Customs and Border Protection (CBP) are an important source of qualitative and quantitative information regarding immigration enforcement practices and patterns.
 
-Under FOIA, UWCHR initially requested all I-213s produced by both CBP and ICE in the state of Washington from 2012-2017; when the agencies failed to adhere to the requirements of FOIA—first claiming privacy waivers were needed for every individual form and then claiming that as law enforcement agencies, they were exempt from providing such records—UWCHR sued in September 2018. UWCHR underwent separate settlement negotiations with each sub-agency. In these discussions, CBP agreed to provide a sample of all documents produced by staff in the agency’s Blaine and Spokane sectors from January 1, 2012 to September 30, 2017; and ICE agreed to provide copies of all documents produced from January 1, 2019 to March 31, 2020 by staff from the agency’s Seattle field office.
+Under FOIA, UWCHR initially requested all I-213s produced by both CBP and ICE in the state of Washington from 2012-2017; when the agencies failed to adhere to the requirements of FOIA—first claiming privacy waivers were needed for every individual form and then claiming that as law enforcement agencies, they were exempt from providing such records—UWCHR sued in September 2018. UWCHR underwent separate settlement negotiations with each sub-agency. In these discussions, CBP agreed to provide a sample of all documents produced by staff in the agency’s Blaine and Spokane sectors from January 1, 2012 to September 30, 2017, totaling `i213 %>% filter(source == "cbp") %>% nrow()` records; and ICE agreed to provide copies of all documents produced from January 1, 2019 to March 31, 2020 by staff from the agency’s Seattle field office, totaling `i213 %>% filter(source == "ice", lawsuit == 1) %>% nrow()` records.
 
-[Second lawsuit details here]
+UWCHR later submitted an identical FOIA request to ICE for April 1, 2020, through November 30, 2021, and underwent a second lawsuit and settlement, resulting in the release of an additional `i213 %>% filter(source == "ice", lawsuit == 2) %>% nrow()` records.
 
 The resulting PDF forms were scraped and cleaned in a separate private repository developed by the Human Rights Data Analysis Group (HRDAG) and maintained by UWCHR. Cleaning and hand-coding of resulting data is ongoing; the following is a preliminary descriptive analysis of the collection. Maps of apprehension locations by I-213 `at_near` value and `at_near` county per capita were previously published for UWCHR's August 2021 report ["Protecting Immigrant Rights: Is Washington’s Law Working?"](https://jsis.washington.edu/humanrights/2021/08/11/protecting-immigrant-rights-is-washingtons-law-working/), see: [https://uwchr.github.io/i-213-analysis/map-wa.html](https://uwchr.github.io/i-213-analysis/map-wa.html).
 
@@ -74,17 +165,9 @@ I-213 narratives follow a semi-regular structure; we have scraped `at_near` valu
 
 ![](../../shared/img/3866f3-1789-1791-2.png)
 
-## Data overview
-
-```{r skim, message = FALSE, warning = FALSE}
-
-i213 %>% skimr::skim()
-
-```
-
 ## Record source
 
-UWCHR's I-213 collection consists of records produced by both CBP and ICE via FOIA litigation, as described above. CBP records are a sample (every 20th record) of all forms produced by staff in the agency’s Blaine and Spokane sectors from January 1, 2012 to September 30, 2017; ICE records include all documents produced from January 1, 2019 to March 31, 2020 by staff from the agency’s Seattle field office.
+UWCHR's I-213 collection consists of records produced by both CBP and ICE via FOIA litigation, as described above. CBP records are a sample (every 20th record) of all forms produced by staff in the agency’s Blaine and Spokane sectors from January 1, 2012 to September 30, 2017; ICE records include all documents produced from January 1, 2019 to November 30, 2021 by staff from the agency’s Seattle field office.
 
 As seen below, some ICE records fall out of the window of time covered by the FOIA settlement; closer scrutiny of these records often shows that the I-213 "Date/Time" field (scraped as `year`, `month`, `day`, `hour`, `minute` fields; also converted into fiscal year `fy`) sometimes relates to a prior apprehension, with the `date_of_action` field more accurately reflecting the date of the apprehension described by the I-213 narrative. Missing "Date/Time" values have also been filled in with `date_of_action` values where appropriate. This cleaning is ongoing in a separate private repository; cleaning methods and data replacements available for review upon request. For most analysis below we will restrict the dataset to records dated January 1, 2019 and after.
 
@@ -102,29 +185,29 @@ ann <- i213 %>%
     pivot_wider(names_from = source, values_from = n,
                 values_fill = list(n = 0)) %>%
     arrange(year)
-
-ann
-
 cbp <- i213 %>%
     filter(source == "cbp")
 
 i213 <- i213 %>%
     filter(source != "cbp")
+ann
+
+
 
 ```
 
 ## ICE record release installments
 
-Records were released by ICE to UWCHR in ten installments. Nine initial monthly installments were released from May 2020 to January 2021. Subsequent UWCHR research revealed additional I-213 forms which should have been disclosed per the terms of the FOIA lawsuit settlement; in response, ICE released a final installment in June 2021. Each ICE installment was released as a continuous PDF file. During the file scraping process, each installment was assigned a unique six-digit hash value which we mutate below into its corresponding release date for ease of interpretation.
+Records were released by ICE to UWCHR in installments. Following UWCHR's first FOIA lawsuit, nine initial monthly installments were released from May 2020 to January 2021. Subsequent UWCHR research revealed additional I-213 forms which should have been disclosed per the terms of the FOIA lawsuit settlement; in response, ICE released a final installment in June 2021. Records resulting from the second lawsuit were released in eight installments during 2023. Each ICE installment was released as a continuous PDF file. During the file scraping process, each installment was assigned a unique six-digit hash value which we mutate below into its corresponding release date for ease of interpretation.
 
-Comparison of the installments follows. We note that date distribution of the installments is erratic but that the center of the date distributions of the first nine installments roughly advances chronologically through the timeline; while the final installment "back-fills" prior months. Note that the overall monthly distribution of records is relatively consistent. Comparison of the installments along other lines, such as geographic distribution, is possible but not particularly instructive; see "compare-installments.Rmd".
+Comparison of the installments follows. We note that date distribution of the installments is erratic but that the center of the date distributions of the first nine installments roughly advances chronologically through the timeline; while the final installment "back-fills" prior months. Note that the overall monthly distribution of records is relatively consistent until the onset of the COVID-19 pandemic in 2020. Comparison of the installments along other lines, such as geographic distribution, is possible but not particularly instructive; see "compare-installments.Rmd".
 
 ```{r installment_distribution, message = FALSE, warning = FALSE}
 
 i213$date <- as.Date(i213$date)
 
 data <- i213 %>%
-  select(date, source, installment) %>%
+  select(date, source, installment, lawsuit) %>%
   filter(date >= '2019-01-01',
          # date <= '2020-03-31',
          source == 'ice')
@@ -144,13 +227,23 @@ p1
 
 p2 <- data %>% ggplot(aes(x = month, fill=installment)) +
   geom_bar(width=10) +
-  scale_x_date(labels = scales::date_format("%b"), 
-               breaks = "3 month") +
+  #scale_x_date(labels = scales::date_format("%b"), 
+  #             breaks = "3 month") +
   theme(axis.text.x = element_text(angle = 90,
                                    vjust = 0.5,
                                    hjust = 1))
 
 p2
+
+p3 <- data %>% ggplot(aes(x = month, fill=as.factor(lawsuit))) +
+  geom_bar(width=10) +
+  #scale_x_date(labels = scales::date_format("%b"), 
+  #             breaks = "3 month") +
+  theme(axis.text.x = element_text(angle = 90,
+                                   vjust = 0.5,
+                                   hjust = 1))
+
+p3
 
 ```
 
@@ -174,24 +267,6 @@ i213 %>%
     count(sex, age_group) %>%
     pivot_wider(names_from = sex, values_from = n)
 
-good_values <- c("ALBINO",
-                 "BLACK",
-                 "DARK BROWN",
-                 "DARK",
-                 "FAIR",
-                 "LIGHT BROWN",
-                 "LIGHT",
-                 "MEDIUM BROWN",
-                 "MEDIUM",
-                 "OLIVE",
-                 "RUDDY",
-                 "SALLOW",
-                 "YELLOW")
-
-i213 <- i213 %>% mutate(cmplxn = case_when(
-         cmplxn %in% good_values ~ cmplxn,
-         is.na(cmplxn) ~ NA_character_,
-         TRUE ~ "OTHER"))
 
 i213 %>% 
   count(cmplxn, sort = TRUE)
@@ -228,7 +303,7 @@ states$ID <- toTitleCase(as.character(states$ID))
 pnw_coords <- coord_sf(xlim = c(-130, -112.5), ylim = c(41, 50), expand = FALSE, crs = 4326)
 
 data_at_near <- i213 %>% 
-  group_by(at_near, lon, lat) %>% 
+  group_by(at_near, lon, lat, lawsuit) %>% 
   summarise(n = n()) %>% 
   na.omit()
 
@@ -523,6 +598,7 @@ data <- i213 %>%
   select(date, state, source, method_location_apprehension, method_short, method_verbose, kww_in_force, office, county) %>%
   filter(!is.na(state),
          date >= '2019-01-01',
+         date <= '2021-12-31',
          source == 'ice')
 
 data$month <- as.Date(cut(data$date, breaks='month'))
@@ -599,6 +675,20 @@ p6 <- data %>%
 
 p6
 
+
+p7 <- data %>%
+    filter(!is.na(state),
+         state == 'OR') %>% 
+  group_by(month, method_verbose) %>% 
+  summarize(n = n()) %>% 
+  ggplot(aes(x = month, y=n, fill= method_verbose)) +
+  geom_col() +
+  theme(axis.text.x = element_text(angle = 90,
+                                   vjust = 0.5,
+                                   hjust = 1)) +
+  facet_wrap(~method_verbose)
+
+p7
 
 ```
 
