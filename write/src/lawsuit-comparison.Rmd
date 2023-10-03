@@ -1,0 +1,406 @@
+---
+title: I-213 descriptive analysis 2023
+author:
+- "[Phil Neff](https://github.com/philneff)"
+date: 2 October, 2023
+output:
+    html_document:
+        html_preview: true
+        toc: true
+        toc_depth: 3
+        toc_float: true
+        code_folding: hide
+---
+
+```{r import, message = FALSE, warning = FALSE}
+
+pacman::p_load(tidyverse, lubridate, here, skimr, yaml, ggplot2, ggalt, gplots,
+               sf, rnaturalearth, rnaturalearthdata, maps, tools, RColorBrewer
+               )
+
+inputfile <- here::here("write/input/uw-chr-i213-public.csv.gz")
+
+i213 <- read_delim(
+    inputfile, delim = "|", 
+    col_types = cols(
+        # .default                     = col_character(),
+        source                       = col_character(),
+        sex                          = col_character(),
+        cmplxn                       = col_character(),
+        country_of_citizenship       = col_factor(),
+        year                         = col_double(),
+        month                        = col_double(),
+        day                          = col_double(),
+        hour                         = col_double(),
+        minute                       = col_double(),
+        fy                           = col_double(),
+        age                          = col_double(),
+        accompanied_juvenile_flag    = col_double(),
+        unaccompanied_juvenile_flag  = col_double(),
+        custody_redetermination_flag = col_double()
+))
+
+```
+
+
+## Cleaning
+
+TODO: Move following to script
+
+```{r cleaning}
+
+i213 <- i213 %>%
+  mutate(across(where(is.character), ~ na_if(.,"")))
+
+i213$date <- as.Date(i213$date)
+i213$month <- as.Date(cut(i213$date, breaks='month'))
+
+i213 <- i213 %>% 
+  mutate(lawsuit = case_when(
+           str_detect(installment, "2023") ~ 2,
+            TRUE ~ 1))
+
+good_values <- c("ALBINO",
+                 "BLACK",
+                 "DARK BROWN",
+                 "DARK",
+                 "FAIR",
+                 "LIGHT BROWN",
+                 "LIGHT",
+                 "MEDIUM BROWN",
+                 "MEDIUM",
+                 "OLIVE",
+                 "RUDDY",
+                 "SALLOW",
+                 "YELLOW")
+
+i213 <- i213 %>% mutate(cmplxn = case_when(
+         cmplxn %in% good_values ~ cmplxn,
+         is.na(cmplxn) ~ NA_character_,
+         TRUE ~ "OTHER"))
+
+i213$office <- str_match(i213$location_code, "SEA|POO|BLW|SPW")
+
+i213 <- i213 %>% 
+  mutate(method_short = case_when(
+           str_detect(method_location_apprehension, "PB") ~ "PB",
+           str_detect(method_location_apprehension, "CFD") ~ "CFD",
+           str_detect(method_location_apprehension, "CST") ~ "CST",
+           str_detect(method_location_apprehension, "CLC") ~ "CLC",
+           str_detect(method_location_apprehension, "NCA") ~ "NCA",
+           str_detect(method_location_apprehension, "LEA") ~ "LEA",
+           str_detect(method_location_apprehension, "OA") ~ "OA",
+           str_detect(method_location_apprehension, "OTF") ~ "OTF",
+           str_detect(method_location_apprehension, "TCB") ~ "TCB",
+           str_detect(method_location_apprehension, "ISP") ~ "ISP",
+           str_detect(method_location_apprehension, "REP") ~ "REP",
+           str_detect(method_location_apprehension, "L") ~ "L",
+           str_detect(method_location_apprehension, "O|0") ~ "O",
+           is.na(method_location_apprehension) ~ NA_character_,
+            TRUE ~ NA_character_),
+         method_verbose = case_when(
+           str_detect(method_location_apprehension, "PB") ~ "Patrol Border",
+           str_detect(method_location_apprehension, "CFD") ~ "CAP Federal",
+           str_detect(method_location_apprehension, "CST") ~ "CAP State",
+           str_detect(method_location_apprehension, "CLC") ~ "CAP Local",
+           str_detect(method_location_apprehension, "NCA") ~ "Non-Custodial Arrest",
+           str_detect(method_location_apprehension, "LEA") ~ "Law Enforcement Assist",
+           str_detect(method_location_apprehension, "OA") ~ "Other Agency",
+           str_detect(method_location_apprehension, "OTF") ~ "Task Force",
+           str_detect(method_location_apprehension, "TCB") ~ "Transportation Check",
+           str_detect(method_location_apprehension, "ISP") ~ "Inspection",
+           str_detect(method_location_apprehension, "REP") ~ "Reprocessed",
+           str_detect(method_location_apprehension, "L") ~ "Located",
+           str_detect(method_location_apprehension, "O|0") ~ "Other",
+           is.na(method_location_apprehension) ~ NA_character_,
+            TRUE ~ NA_character_),
+         method_int_border = case_when(
+           str_detect(method_location_apprehension, "PB") ~ "Border",
+           str_detect(method_location_apprehension, "CFD") ~ "Interior",
+           str_detect(method_location_apprehension, "CST") ~ "Interior",
+           str_detect(method_location_apprehension, "CLC") ~ "Interior",
+           str_detect(method_location_apprehension, "NCA") ~ "Interior",
+           str_detect(method_location_apprehension, "LEA") ~ "Interior",
+           str_detect(method_location_apprehension, "OA") ~ "Interior",
+           str_detect(method_location_apprehension, "OTF") ~ "Interior",
+           str_detect(method_location_apprehension, "TCB") ~ "Interior",
+           str_detect(method_location_apprehension, "ISP") ~ "Border",
+           str_detect(method_location_apprehension, "L") ~ "Interior",
+           str_detect(method_location_apprehension, "REP") ~ "Other",
+           str_detect(method_location_apprehension, "O|0") ~ "Other",
+           is.na(method_location_apprehension) ~ NA_character_,
+            TRUE ~ NA_character_))
+
+i213 <- i213 %>% mutate(age_group = cut(age,
+                           breaks = c(0, 18, 25, 40, 60, Inf),
+                           right = FALSE))
+
+```
+
+```{r lawsuit_time}
+
+p1 <- i213 %>% 
+    filter(date >= '2019-01-01',
+         # date <= '2020-03-31',
+         source == 'ice') %>% 
+  group_by(month, lawsuit) %>% 
+  summarize(n = n()) %>% 
+  ggplot(aes(x=month, y=n, fill=lawsuit)) +
+  geom_col()
+
+plot(p1)
+
+```
+
+```{r lawsuit_method}
+
+p1 <- i213 %>% 
+    filter(date >= '2019-01-01',
+         # date <= '2020-03-31',
+         source == 'ice') %>% 
+  group_by(lawsuit, method_short) %>% 
+  summarize(n = n()) %>% 
+  ggplot(aes(x=n, y=method_short, fill=method_short)) +
+  geom_col() +
+  facet_wrap(~lawsuit)
+
+plot(p1)
+
+p2 <- i213 %>% 
+    filter(date >= '2019-01-01',
+         # date <= '2020-03-31',
+         source == 'ice') %>% 
+  group_by(month, method_short) %>% 
+  summarize(n = n()) %>% 
+  ggplot(aes(x=month, y=n, fill=method_short)) +
+  geom_col()
+
+plot(p2)
+```
+
+```{r lawsuit_state}
+
+p1 <- i213 %>% 
+    filter(date >= '2019-01-01',
+         # date <= '2020-03-31',
+         source == 'ice') %>% 
+  group_by(lawsuit, state) %>% 
+  summarize(n = n()) %>% 
+  ggplot(aes(x=n, y=state, fill=state)) +
+  geom_col() +
+  facet_wrap(~lawsuit)
+
+plot(p1)
+
+p2 <- i213 %>% 
+    filter(date >= '2019-01-01',
+         # date <= '2020-03-31',
+         source == 'ice') %>% 
+  group_by(month, state) %>% 
+  summarize(n = n()) %>% 
+  ggplot(aes(x=month, y=n, fill=state)) +
+  geom_col()
+
+plot(p2)
+
+```
+
+Records for latter portion of collection (2nd lawsuit) include much greater proportion of juveniles, slightly greater proportion of females.
+
+```{r age_sex}
+
+i213 %>%
+    filter(!is.na(age), !is.na(sex)) %>%
+    mutate(age_group = cut(age,
+                           breaks = c(0, 18, 25, 40, 60, Inf),
+                           right = FALSE)) %>%
+    count(lawsuit, sex, age_group) %>%
+    mutate(n = n / sum(n) * 100) %>% 
+    pivot_wider(names_from = sex, values_from = n)
+
+p1 <- i213 %>%
+    filter(!is.na(age), !is.na(sex)) %>%
+    mutate(age_group = cut(age,
+                           breaks = c(0, 18, 25, 40, 60, Inf),
+                           right = FALSE)) %>% 
+    count(lawsuit, sex, age_group) %>%
+    ggplot(aes(x = age_group, y = n, fill = sex)) +
+  geom_col() +
+  facet_wrap(~lawsuit)
+  
+p1
+
+p2 <- i213 %>%
+    filter(!is.na(age), !is.na(sex), date >= '2019-01-01') %>%
+    count(month, sex) %>%
+    ggplot(aes(x = month, y = n, fill = sex)) +
+  geom_col()
+  
+p2
+
+p3 <- i213 %>%
+    filter(!is.na(age), !is.na(sex), date >= '2019-01-01') %>%
+    mutate(age_group = cut(age,
+                           breaks = c(0, 18, Inf),
+                           right = FALSE)) %>% 
+    count(month, age_group) %>%
+  ggplot(aes(x = month, y = n, fill = age_group)) +
+  geom_col()
+  
+p3
+
+p4 <- i213 %>%
+    filter(!is.na(age), !is.na(sex), date >= '2019-01-01') %>%
+    count(lawsuit, sex) %>%
+  ggplot(aes(x = lawsuit, y = n, fill = sex)) +
+  geom_col(position='fill')
+
+p4
+
+```
+
+
+```{r at_near_maps, message = FALSE, warning = FALSE}
+
+world <- ne_countries(scale = "medium", returnclass = "sf")
+states <- st_as_sf(map("state", crs = 4326, plot = FALSE, fill = TRUE))
+states <- cbind(states, st_coordinates(st_point_on_surface(states)))
+states$ID <- toTitleCase(as.character(states$ID))
+
+pnw_coords <- coord_sf(xlim = c(-130, -112.5), ylim = c(41, 50), expand = FALSE, crs = 4326)
+
+data_at_near <- i213 %>% 
+  group_by(at_near, lon, lat, lawsuit) %>% 
+  summarise(n = n()) %>% 
+  na.omit()
+
+data_at_near <- st_as_sf(data_at_near, coords = c("lon", "lat"),
+                  crs = 4326, agr = "constant")
+
+ggplot(data = world) +
+    geom_sf() +
+    geom_sf(data = states, fill = NA) +
+    geom_sf(data = data_at_near, aes(size=n), shape = 21, fill = "red", alpha=.5) +
+    pnw_coords +
+    labs(title='I-213 forms by "at_near" latitude/longitude',
+         subtitle = "Comparison of 1st and 2nd lawsuits") +
+    facet_wrap(~lawsuit)
+
+```
+
+
+```{r loc_codes}
+
+loc_codes <- i213 %>% 
+  group_by(location_code, lawsuit) %>% 
+  summarize(n = n()) %>% 
+  arrange(desc(n)) %>% 
+  na.omit()
+
+loc_codes_county <- i213 %>% 
+  group_by(location_code, lawsuit) %>% 
+  summarize(n_counties = n_distinct(county),
+            n_state = n_distinct(state)) %>% 
+  arrange(desc(n_counties)) %>% 
+  na.omit()
+
+top <- unlist(loc_codes[1:20, 'location_code'])
+
+sites <- i213 %>% select(lon, lat, location_code, office, lawsuit, source, method_short) %>% 
+  filter(source == "ice") %>%
+  na.omit()
+
+sites <- st_as_sf(sites, coords = c("lon", "lat"),
+                   crs = 4326, agr = "constant")
+
+sites <- cbind(sites, st_coordinates(sites))
+
+# Exclude small number of records outside geographic bounds of Pacific Northwest
+sites <- sites[sites$X < -110,]
+sites <- sites[sites$X > -130,]
+sites <- sites[sites$Y < 50,]
+sites <- sites[sites$Y > 42,]
+
+sites <- sites %>% 
+  na.omit()
+
+m1 <- ggplot() +
+    geom_sf(data = world) +
+    geom_sf(data = states, fill = NA) + 
+    geom_jitter(data = sites, size = 2, shape = 23, width=.25, height=.25, aes(x = X, y = Y, fill = location_code)) +
+    pnw_coords +
+    ggtitle('I-213 forms by approx. "at_near" latitude/longitude') +
+  facet_wrap(~lawsuit)
+
+m1
+
+m2 <- ggplot() +
+    geom_sf(data = world) +
+    geom_sf(data = states, fill = NA) + 
+    geom_point(data = sites, size = 2, shape = 23, aes(x = X, y = Y, fill = office)) +
+    geom_encircle(data = sites, aes(x = X, y = Y, group=office, col=office)) +
+    pnw_coords +
+        labs(title='I-213 forms by "at_near" latitude/longitude',
+         subtitle = "Comparison of 1st and 2nd lawsuits") +
+  facet_wrap(~lawsuit)
+
+m2
+
+```
+
+```{r method}
+
+p1 <- i213 %>% 
+  filter(source == 'ice') %>% 
+  count(lawsuit, method_short) %>% 
+  ggplot(aes(x = method_short, y=n, fill=method_short)) +
+  geom_col() +
+  facet_wrap(~lawsuit)
+  
+
+p1
+
+p2 <- i213 %>% 
+  filter(source == 'ice') %>% 
+  count(lawsuit, office, method_short) %>% 
+  ggplot(aes(x = method_short, y=n, fill=method_short)) +
+  geom_col() +
+  facet_grid(lawsuit ~ office)
+  
+
+p2
+
+p3 <- i213 %>% 
+  filter(source == 'ice',
+         state %in% c('WA', 'OR')) %>% 
+  count(state, lawsuit, method_short) %>% 
+  ggplot(aes(x = method_short, y=n, fill=method_short)) +
+  geom_col() +
+  facet_grid(lawsuit~state)
+  
+
+p3
+
+p4 <- i213 %>% 
+  filter(source == 'ice',
+         state %in% c('WA', 'OR')) %>% 
+  count(age_group, state, method_short) %>% 
+  ggplot(aes(x = method_short, y=n, fill=method_short)) +
+  geom_col() +
+  facet_grid(state~age_group)
+  
+p4
+
+p4 <- i213 %>% 
+  filter(source == 'ice',
+         office %in% c('SEA', 'POO')) %>% 
+  count(age_group, office, method_short) %>% 
+  ggplot(aes(x = method_short, y=n, fill=method_short)) +
+  geom_col() +
+  facet_grid(office~age_group)
+  
+p4
+
+```
+
+
