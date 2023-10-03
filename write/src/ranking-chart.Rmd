@@ -1,0 +1,242 @@
+---
+title: I-213 descriptive analysis 2023
+author:
+- "[Phil Neff](https://github.com/philneff)"
+date: 2 October, 2023
+output:
+    html_document:
+        html_preview: true
+        toc: true
+        toc_depth: 3
+        toc_float: true
+        code_folding: hide
+---
+
+```{r import, message = FALSE, warning = FALSE}
+
+pacman::p_load(tidyverse, lubridate, here, skimr, yaml, ggplot2, ggalt, gplots,
+               sf, rnaturalearth, rnaturalearthdata, maps, tools, RColorBrewer
+               )
+
+inputfile <- here::here("write/input/uw-chr-i213-public.csv.gz")
+
+i213 <- read_delim(
+    inputfile, delim = "|", 
+    col_types = cols(
+        # .default                     = col_character(),
+        source                       = col_character(),
+        sex                          = col_character(),
+        cmplxn                       = col_character(),
+        country_of_citizenship       = col_factor(),
+        year                         = col_double(),
+        month                        = col_double(),
+        day                          = col_double(),
+        hour                         = col_double(),
+        minute                       = col_double(),
+        fy                           = col_double(),
+        age                          = col_double(),
+        accompanied_juvenile_flag    = col_double(),
+        unaccompanied_juvenile_flag  = col_double(),
+        custody_redetermination_flag = col_double()
+))
+
+```
+
+
+## Cleaning
+
+TODO: Move following to script
+
+```{r cleaning}
+
+i213 <- i213 %>%
+  mutate(across(where(is.character), ~ na_if(.,"")))
+
+i213$date <- as.Date(i213$date)
+i213$month <- as.Date(cut(i213$date, breaks='month'))
+
+i213 <- i213 %>% 
+  mutate(lawsuit = case_when(
+           str_detect(installment, "2023") ~ 2,
+            TRUE ~ 1))
+
+good_values <- c("ALBINO",
+                 "BLACK",
+                 "DARK BROWN",
+                 "DARK",
+                 "FAIR",
+                 "LIGHT BROWN",
+                 "LIGHT",
+                 "MEDIUM BROWN",
+                 "MEDIUM",
+                 "OLIVE",
+                 "RUDDY",
+                 "SALLOW",
+                 "YELLOW")
+
+i213 <- i213 %>% mutate(cmplxn = case_when(
+         cmplxn %in% good_values ~ cmplxn,
+         is.na(cmplxn) ~ NA_character_,
+         TRUE ~ "OTHER"))
+
+i213$office <- str_match(i213$location_code, "SEA|POO|BLW|SPW")
+
+i213 <- i213 %>% 
+  mutate(method_short = case_when(
+           str_detect(method_location_apprehension, "PB") ~ "PB",
+           str_detect(method_location_apprehension, "CFD") ~ "CFD",
+           str_detect(method_location_apprehension, "CST") ~ "CST",
+           str_detect(method_location_apprehension, "CLC") ~ "CLC",
+           str_detect(method_location_apprehension, "NCA") ~ "NCA",
+           str_detect(method_location_apprehension, "LEA") ~ "LEA",
+           str_detect(method_location_apprehension, "OA") ~ "OA",
+           str_detect(method_location_apprehension, "OTF") ~ "OTF",
+           str_detect(method_location_apprehension, "TCB") ~ "TCB",
+           str_detect(method_location_apprehension, "ISP") ~ "ISP",
+           str_detect(method_location_apprehension, "REP") ~ "REP",
+           str_detect(method_location_apprehension, "L") ~ "L",
+           str_detect(method_location_apprehension, "O|0") ~ "O",
+           is.na(method_location_apprehension) ~ NA_character_,
+            TRUE ~ NA_character_),
+         method_verbose = case_when(
+           str_detect(method_location_apprehension, "PB") ~ "Patrol Border",
+           str_detect(method_location_apprehension, "CFD") ~ "CAP Federal",
+           str_detect(method_location_apprehension, "CST") ~ "CAP State",
+           str_detect(method_location_apprehension, "CLC") ~ "CAP Local",
+           str_detect(method_location_apprehension, "NCA") ~ "Non-Custodial Arrest",
+           str_detect(method_location_apprehension, "LEA") ~ "Law Enforcement Assist",
+           str_detect(method_location_apprehension, "OA") ~ "Other Agency",
+           str_detect(method_location_apprehension, "OTF") ~ "Task Force",
+           str_detect(method_location_apprehension, "TCB") ~ "Transportation Check",
+           str_detect(method_location_apprehension, "ISP") ~ "Inspection",
+           str_detect(method_location_apprehension, "REP") ~ "Reprocessed",
+           str_detect(method_location_apprehension, "L") ~ "Located",
+           str_detect(method_location_apprehension, "O|0") ~ "Other",
+           is.na(method_location_apprehension) ~ NA_character_,
+            TRUE ~ NA_character_),
+         method_int_border = case_when(
+           str_detect(method_location_apprehension, "PB") ~ "Border",
+           str_detect(method_location_apprehension, "CFD") ~ "Interior",
+           str_detect(method_location_apprehension, "CST") ~ "Interior",
+           str_detect(method_location_apprehension, "CLC") ~ "Interior",
+           str_detect(method_location_apprehension, "NCA") ~ "Interior",
+           str_detect(method_location_apprehension, "LEA") ~ "Interior",
+           str_detect(method_location_apprehension, "OA") ~ "Interior",
+           str_detect(method_location_apprehension, "OTF") ~ "Interior",
+           str_detect(method_location_apprehension, "TCB") ~ "Interior",
+           str_detect(method_location_apprehension, "ISP") ~ "Border",
+           str_detect(method_location_apprehension, "L") ~ "Interior",
+           str_detect(method_location_apprehension, "REP") ~ "Other",
+           str_detect(method_location_apprehension, "O|0") ~ "Other",
+           is.na(method_location_apprehension) ~ NA_character_,
+            TRUE ~ NA_character_))
+
+```
+
+```{r nationality_rank_theme}
+
+my_theme <- function() {
+  # Colors
+  color.background = "white"
+  color.text = "#22211d"
+  # Begin construction of chart
+  theme_bw(base_size=16) +
+    # Format background colors
+    theme(panel.background = element_rect(fill=color.background, color=color.background)) +
+    theme(plot.background  = element_rect(fill=color.background, color=color.background)) +
+    theme(panel.border     = element_rect(color=color.background)) +
+    theme(strip.background = element_rect(fill=color.background, color=color.background)) +
+    # Format the grid
+    theme(panel.grid.major.y = element_blank()) +
+    theme(panel.grid.minor.y = element_blank()) +
+    theme(axis.ticks       = element_blank()) +
+    # Format the legend
+    theme(legend.position = "none") +
+    # Format title and axis labels
+    theme(plot.title       = element_text(color=color.text, size=20, face = "bold")) +
+    theme(axis.title.x     = element_text(size=14, color="black", face = "bold")) +
+    theme(axis.title.y     = element_text(size=14, color="black", face = "bold", vjust=1.25)) +
+    theme(axis.text.x      = element_text(size=10, vjust=0.5, hjust=0, color = color.text)) +
+    theme(axis.text.y      = element_text(size=10, color = color.text)) +
+    theme(strip.text       = element_text(face = "bold")) +
+    # Plot margins
+    theme(plot.margin = unit(c(0.35, 0.2, 0.3, 0.35), "cm"))
+}
+
+```
+
+https://www.r-bloggers.com/2018/04/bump-chart/
+
+```{r nationality_ranking }
+
+show.top.n <- 10
+
+rankings <- i213 %>% 
+  filter(date >= '2019-01-01',
+         date <= '2021-12-31') %>%
+  mutate(country = substr(country_of_citizenship, start = 1, stop = 3)) %>% 
+  count(quarter, country) %>% 
+  arrange(quarter, desc(n), country) %>% 
+  group_by(quarter) %>% 
+  mutate(ranking = row_number(),
+         quarter = as.character(quarter))
+
+rankings <- rankings %>%
+  mutate(flag = ifelse(country %in% c("MEX", "IND", "HON", "GUA", "NIC", "EL ", "VEN", "CHI"), TRUE, FALSE),
+         country_col = if_else(flag == TRUE, country, "zzz"))
+
+p1 <- rankings %>%
+  ggplot(aes(x = quarter, y = ranking, group = country)) +
+  geom_line(aes(color = country_col, alpha=1), linewidth = 2) +
+  geom_point(aes(color = country_col, alpha=1), size = 4) +
+  geom_point(color = "#FFFFFF", size = 1) +
+  scale_y_reverse(breaks = 1:show.top.n) +
+  geom_text(data = rankings %>% filter(quarter == '2019.2'),
+            aes(label = country, x = 0) , hjust = 0, nudge_x=-.1, fontface = "bold", color = "#888888", size = 4) +
+  geom_text(data = rankings %>% filter(quarter == '2022.1'),
+            aes(label = country, x = 14) , hjust = 1.5, fontface = "bold", color = "#888888", size = 4) +
+  coord_cartesian(ylim = c(show.top.n,1)) +
+  theme(legend.position = "none") +
+  labs(x = "Quarter",
+       y = "Rank",
+       title = "SEA AOR I-213s",
+       subtitle = "Country of citizenship rank") +
+  my_theme() +
+  scale_color_manual(values = c("#F70020","#191A1A","#FB9701","#1A7D00","#072C8F", "yellow", 'purple', "lightblue", "grey"))
+
+p1
+```
+
+```{r nationality_rank_state}
+
+state_rankings <- i213 %>% 
+  filter(date >= '2019-01-01',
+         date <= '2021-12-31') %>%
+  mutate(country = substr(country_of_citizenship, start = 1, stop = 3),
+         state = case_when(state == "WA" ~ "WA",
+                           state == "OR" ~ "OR",
+                           TRUE ~ "ALL OTHERS")) %>% 
+  filter(state %in% c("WA", "OR")) %>% 
+  count(quarter, state, country) %>% 
+  arrange(state, quarter, desc(n), country) %>% 
+  group_by(state, quarter) %>% 
+  mutate(ranking = row_number(),
+         quarter = as.character(quarter))
+
+state_rankings <- state_rankings %>%
+  mutate(flag = ifelse(country %in% c("MEX", "IND", "HON", "GUA", "NIC", "EL ", "VEN", "CHI"), TRUE, FALSE),
+         country_col = if_else(flag == TRUE, country, "zzz"))
+
+p1 <- state_rankings %>%
+  ggplot(aes(x = as.factor(quarter), y = ranking, group = country)) +
+  geom_line(aes(color = country_col, alpha=1), size = 2) +
+  geom_point(aes(color = country_col, alpha=1), size = 4) +
+  scale_y_reverse(breaks = 1:nrow(rankings)) +
+  coord_cartesian(ylim = c(show.top.n,1)) +
+  theme(legend.position = "none") +
+  scale_color_manual(values = c("#F70020","#191A1A","#FB9701","#1A7D00","#072C8F", "yellow", 'purple', "lightblue", "grey")) +
+  facet_wrap(~state)
+
+p1
+```
+
