@@ -2,7 +2,7 @@
 title: I-213 descriptive analysis
 author:
 - "[Phil Neff](https://github.com/philneff)"
-date: 23 June, 2023
+date: 4 October, 2023
 output:
     html_document:
         html_preview: true
@@ -125,21 +125,15 @@ i213 <- i213 %>%
            str_detect(method_location_apprehension, "O|0") ~ "Other",
            is.na(method_location_apprehension) ~ NA_character_,
             TRUE ~ NA_character_))
-
-i213 %>%
-    filter(source != "cbp",
-           lawsuit == 1) %>% 
-  nrow()
-
 ```
 
 # Descriptive analysis of UWCHR I-213 collection
 
 As part of its ["Human Rights At Home"](https://jsis.washington.edu/humanrights/projects/human-rights-at-home/) and ["Immigrant Rights Observatory"](https://jsis.washington.edu/humanrights/projects/human-rights-at-home/immigrant-rights-observatory/) research initiatives, the University of Washington Center for Human Rights (UWCHR) has obtained a collection of I-213 "Record of Deportable/Inadmissible Alien" forms via Freedom of Information Act (FOIA) requests to the US Department of Homeland Security (DHS). These internal forms documenting apprehensions by US Immigration and Customs Enforcement (ICE) and Customs and Border Protection (CBP) are an important source of qualitative and quantitative information regarding immigration enforcement practices and patterns.
 
-Under FOIA, UWCHR initially requested all I-213s produced by both CBP and ICE in the state of Washington from 2012-2017; when the agencies failed to adhere to the requirements of FOIA—first claiming privacy waivers were needed for every individual form and then claiming that as law enforcement agencies, they were exempt from providing such records—UWCHR sued in September 2018. UWCHR underwent separate settlement negotiations with each sub-agency. In these discussions, CBP agreed to provide a sample of all documents produced by staff in the agency’s Blaine and Spokane sectors from January 1, 2012 to September 30, 2017, totaling `i213 %>% filter(source == "cbp") %>% nrow()` records; and ICE agreed to provide copies of all documents produced from January 1, 2019 to March 31, 2020 by staff from the agency’s Seattle field office, totaling `i213 %>% filter(source == "ice", lawsuit == 1) %>% nrow()` records.
+Under FOIA, UWCHR initially requested all I-213s produced by both CBP and ICE in the state of Washington from 2012-2017; when the agencies failed to adhere to the requirements of FOIA—first claiming privacy waivers were needed for every individual form and then claiming that as law enforcement agencies, they were exempt from providing such records—UWCHR sued in September 2018. UWCHR underwent separate settlement negotiations with each sub-agency. In these discussions, CBP agreed to provide a sample of all documents produced by staff in the agency’s Blaine and Spokane sectors from January 1, 2012 to September 30, 2017, totaling `r i213 %>% filter(source == "cbp") %>% nrow()` records; and ICE agreed to provide copies of all documents produced from January 1, 2019 to March 31, 2020 by staff from the agency’s Seattle field office, totaling `r i213 %>% filter(source == "ice", lawsuit == 1) %>% nrow()` records.
 
-UWCHR later submitted an identical FOIA request to ICE for April 1, 2020, through November 30, 2021, and underwent a second lawsuit and settlement, resulting in the release of an additional `i213 %>% filter(source == "ice", lawsuit == 2) %>% nrow()` records.
+UWCHR later submitted an identical FOIA request to ICE for April 1, 2020, through November 30, 2021, and underwent a second lawsuit and settlement, resulting in the release of an additional `r i213 %>% filter(source == "ice", lawsuit == 2) %>% nrow()` records.
 
 The resulting PDF forms were scraped and cleaned in a separate private repository developed by the Human Rights Data Analysis Group (HRDAG) and maintained by UWCHR. Cleaning and hand-coding of resulting data is ongoing; the following is a preliminary descriptive analysis of the collection. Maps of apprehension locations by I-213 `at_near` value and `at_near` county per capita were previously published for UWCHR's August 2021 report ["Protecting Immigrant Rights: Is Washington’s Law Working?"](https://jsis.washington.edu/humanrights/2021/08/11/protecting-immigrant-rights-is-washingtons-law-working/), see: [https://uwchr.github.io/i-213-analysis/map-wa.html](https://uwchr.github.io/i-213-analysis/map-wa.html).
 
@@ -198,9 +192,9 @@ ann
 
 ## ICE record release installments
 
-Records were released by ICE to UWCHR in installments. Following UWCHR's first FOIA lawsuit, nine initial monthly installments were released from May 2020 to January 2021. Subsequent UWCHR research revealed additional I-213 forms which should have been disclosed per the terms of the FOIA lawsuit settlement; in response, ICE released a final installment in June 2021. Records resulting from the second lawsuit were released in eight installments during 2023. Each ICE installment was released as a continuous PDF file. During the file scraping process, each installment was assigned a unique six-digit hash value which we mutate below into its corresponding release date for ease of interpretation.
+Records were released by ICE to UWCHR in installments. Following UWCHR's first FOIA lawsuit, nine initial monthly installments were released from May 2020 to January 2021. Subsequent UWCHR research revealed additional I-213 forms which should have been disclosed per the terms of the FOIA lawsuit settlement; in response, ICE released a final installment in June 2021. Records resulting from the second lawsuit were released in eight installments during 2023. Each ICE installment was released as a continuous PDF file. During the file scraping process, each installment was assigned a unique six-digit hash value for identification purposes.
 
-Comparison of the installments follows. We note that date distribution of the installments is erratic but that the center of the date distributions of the first nine installments roughly advances chronologically through the timeline; while the final installment "back-fills" prior months. Note that the overall monthly distribution of records is relatively consistent until the onset of the COVID-19 pandemic in 2020. Comparison of the installments along other lines, such as geographic distribution, is possible but not particularly instructive; see "compare-installments.Rmd".
+Comparison of the installments follows. We note that date distribution of the installments is erratic but that the center of the date distributions of the first nine installments roughly advances chronologically through the timeline; while the final installment "back-fills" prior months. Note that the overall monthly distribution of records is relatively consistent until the onset of the COVID-19 pandemic in 2020. Comparison of the installments along other lines, such as geographic distribution, is possible but not particularly instructive; see "compare-installments.Rmd". Comparison of the records between lawsuit production periods is more useful; see "compare-lawsuits.Rmd".
 
 ```{r installment_distribution, message = FALSE, warning = FALSE}
 
@@ -325,6 +319,8 @@ I-213 forms include "Location Code" field designating the DHS office and sub-off
 
 Plotting location codes (with added jitter for visual effect) and simplified codes for DHS offices (with lines encircling points to suggest jurisdictional demarcations) demonstrates the geographic consistency of these values. Some ICE field offices and Border Patrol sectors span multiple counties and states, while others are more localized. Note that the Seattle ICE field office covers the majority of the Seattle "Area of Responsibility" (WA, OR, AK; Alaska records fall under the Anchorage Sub-Field Office, "ANC/ANC"); note also the difference in coverage between the relatively localized Blaine Sector Border Patrol ("BLW") versus the wide geographic range of the Spokane Sector ("SPW"). Note also the overlap of the Seattle, Portland, and Spokane jurisdictions in Central Washington.
 
+I-213 records from April 2020 through November 2021 (second lawsuit production) do not include any forms with location codes "BLW" or "SPW".
+
 ```{r loc_code, message = FALSE, warning = FALSE}
 
 i213 %>% count(location_code, sort = TRUE) %>% 
@@ -434,6 +430,7 @@ i213 <- i213 %>%
            str_detect(method_location_apprehension, "OTF") ~ "OTF",
            str_detect(method_location_apprehension, "TCB") ~ "TCB",
            str_detect(method_location_apprehension, "ISP") ~ "ISP",
+           str_detect(method_location_apprehension, "REP") ~ "REP",
            str_detect(method_location_apprehension, "L") ~ "L",
            str_detect(method_location_apprehension, "O|0") ~ "O",
            is.na(method_location_apprehension) ~ NA_character_,
@@ -449,6 +446,7 @@ i213 <- i213 %>%
            str_detect(method_location_apprehension, "OTF") ~ "Task Force",
            str_detect(method_location_apprehension, "TCB") ~ "Transportation Check",
            str_detect(method_location_apprehension, "ISP") ~ "Inspection",
+           str_detect(method_location_apprehension, "REP") ~ "Reprocessed",
            str_detect(method_location_apprehension, "L") ~ "Located",
            str_detect(method_location_apprehension, "O|0") ~ "Other",
            is.na(method_location_apprehension) ~ NA_character_,
@@ -465,6 +463,7 @@ i213 <- i213 %>%
            str_detect(method_location_apprehension, "TCB") ~ "Interior",
            str_detect(method_location_apprehension, "ISP") ~ "Border",
            str_detect(method_location_apprehension, "L") ~ "Interior",
+           str_detect(method_location_apprehension, "REP") ~ "Other",
            str_detect(method_location_apprehension, "O|0") ~ "Other",
            is.na(method_location_apprehension) ~ NA_character_,
             TRUE ~ NA_character_))
@@ -515,16 +514,16 @@ p3 <- data %>%
 
 p3
 
-p4 <- data %>% 
-  filter(!county %in% priority_counties) %>%
-  ggplot(aes(x = county, fill= method_verbose)) +
-  geom_bar(position = "fill") +
-  scale_y_continuous() +
-  theme(axis.text.x = element_text(angle = 90,
-                                   vjust = 0.5,
-                                   hjust = 1))
-
-p4
+# p4 <- data %>% 
+#   filter(!county %in% priority_counties) %>%
+#   ggplot(aes(x = county, fill= method_verbose)) +
+#   geom_bar(position = "fill") +
+#   scale_y_continuous() +
+#   theme(axis.text.x = element_text(angle = 90,
+#                                    vjust = 0.5,
+#                                    hjust = 1))
+# 
+# p4
 
 p5 <- data %>% 
   filter(county %in% priority_counties) %>%
@@ -816,38 +815,6 @@ p4 <- i213 %>%
                                    hjust = 1))
 
 p4
-
-```
-
-A closer look at Whatcom County data:
-
-```{r whatcom_deep_dive, message=FALSE, warning=FALSE}
-
-p5 <- i213 %>% 
-  filter(!is.na(state),
-       state == 'WA',
-       date >= '2019-01-01',
-       source == 'ice',
-       county == 'Whatcom County') %>% 
-  ggplot(aes(x = country_short, fill= country_short)) +
-  geom_bar() +
-  facet_wrap(~method_int_border) +
-  theme(axis.text.x = element_text(angle = 90,
-                                   vjust = 0.5,
-                                   hjust = 1))
-
-p5
-
-p5_data <- i213 %>% 
-  filter(!is.na(state),
-       state == 'WA',
-       date >= '2019-01-01',
-       source == 'ice',
-       county == 'Whatcom County') %>% 
-  group_by(method_verbose, country_of_citizenship) %>%
-  summarise(n = n())
-
-# write_csv(p5_data, '../output/whatcom-method-citizenship.csv')
 
 ```
 
