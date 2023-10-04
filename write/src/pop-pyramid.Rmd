@@ -1,0 +1,335 @@
+---
+title: I-213 descriptive analysis 2023
+author:
+- "[Phil Neff](https://github.com/philneff)"
+date: 2 October, 2023
+output:
+    html_document:
+        html_preview: true
+        toc: true
+        toc_depth: 3
+        toc_float: true
+        code_folding: hide
+---
+
+```{r import, message = FALSE, warning = FALSE}
+
+pacman::p_load(tidyverse, lubridate, here, skimr, yaml, ggplot2, ggalt, gplots,
+               sf, rnaturalearth, rnaturalearthdata, maps, tools, RColorBrewer
+               )
+
+inputfile <- here::here("write/input/uw-chr-i213-public.csv.gz")
+
+i213 <- read_delim(
+    inputfile, delim = "|", 
+    col_types = cols(
+        # .default                     = col_character(),
+        source                       = col_character(),
+        sex                          = col_character(),
+        cmplxn                       = col_character(),
+        country_of_citizenship       = col_factor(),
+        year                         = col_double(),
+        month                        = col_double(),
+        day                          = col_double(),
+        hour                         = col_double(),
+        minute                       = col_double(),
+        fy                           = col_double(),
+        age                          = col_double(),
+        accompanied_juvenile_flag    = col_double(),
+        unaccompanied_juvenile_flag  = col_double(),
+        custody_redetermination_flag = col_double()
+))
+
+```
+
+
+## Cleaning
+
+TODO: Move following to script
+
+```{r cleaning}
+
+i213 <- i213 %>%
+  mutate(across(where(is.character), ~ na_if(.,"")))
+
+i213$date <- as.Date(i213$date)
+i213$month <- as.Date(cut(i213$date, breaks='month'))
+
+i213 <- i213 %>% 
+  mutate(lawsuit = case_when(
+           str_detect(installment, "2023") ~ 2,
+            TRUE ~ 1))
+
+good_values <- c("ALBINO",
+                 "BLACK",
+                 "DARK BROWN",
+                 "DARK",
+                 "FAIR",
+                 "LIGHT BROWN",
+                 "LIGHT",
+                 "MEDIUM BROWN",
+                 "MEDIUM",
+                 "OLIVE",
+                 "RUDDY",
+                 "SALLOW",
+                 "YELLOW")
+
+i213 <- i213 %>% mutate(cmplxn = case_when(
+         cmplxn %in% good_values ~ cmplxn,
+         is.na(cmplxn) ~ NA_character_,
+         TRUE ~ "OTHER"))
+
+i213$office <- str_match(i213$location_code, "SEA|POO|BLW|SPW")
+
+i213 <- i213 %>% 
+  mutate(method_short = case_when(
+           str_detect(method_location_apprehension, "PB") ~ "PB",
+           str_detect(method_location_apprehension, "CFD") ~ "CFD",
+           str_detect(method_location_apprehension, "CST") ~ "CST",
+           str_detect(method_location_apprehension, "CLC") ~ "CLC",
+           str_detect(method_location_apprehension, "NCA") ~ "NCA",
+           str_detect(method_location_apprehension, "LEA") ~ "LEA",
+           str_detect(method_location_apprehension, "OA") ~ "OA",
+           str_detect(method_location_apprehension, "OTF") ~ "OTF",
+           str_detect(method_location_apprehension, "TCB") ~ "TCB",
+           str_detect(method_location_apprehension, "ISP") ~ "ISP",
+           str_detect(method_location_apprehension, "REP") ~ "REP",
+           str_detect(method_location_apprehension, "L") ~ "L",
+           str_detect(method_location_apprehension, "O|0") ~ "O",
+           is.na(method_location_apprehension) ~ NA_character_,
+            TRUE ~ NA_character_),
+         method_verbose = case_when(
+           str_detect(method_location_apprehension, "PB") ~ "Patrol Border",
+           str_detect(method_location_apprehension, "CFD") ~ "CAP Federal",
+           str_detect(method_location_apprehension, "CST") ~ "CAP State",
+           str_detect(method_location_apprehension, "CLC") ~ "CAP Local",
+           str_detect(method_location_apprehension, "NCA") ~ "Non-Custodial Arrest",
+           str_detect(method_location_apprehension, "LEA") ~ "Law Enforcement Assist",
+           str_detect(method_location_apprehension, "OA") ~ "Other Agency",
+           str_detect(method_location_apprehension, "OTF") ~ "Task Force",
+           str_detect(method_location_apprehension, "TCB") ~ "Transportation Check",
+           str_detect(method_location_apprehension, "ISP") ~ "Inspection",
+           str_detect(method_location_apprehension, "REP") ~ "Reprocessed",
+           str_detect(method_location_apprehension, "L") ~ "Located",
+           str_detect(method_location_apprehension, "O|0") ~ "Other",
+           is.na(method_location_apprehension) ~ NA_character_,
+            TRUE ~ NA_character_),
+         method_int_border = case_when(
+           str_detect(method_location_apprehension, "PB") ~ "Border",
+           str_detect(method_location_apprehension, "CFD") ~ "Interior",
+           str_detect(method_location_apprehension, "CST") ~ "Interior",
+           str_detect(method_location_apprehension, "CLC") ~ "Interior",
+           str_detect(method_location_apprehension, "NCA") ~ "Interior",
+           str_detect(method_location_apprehension, "LEA") ~ "Interior",
+           str_detect(method_location_apprehension, "OA") ~ "Interior",
+           str_detect(method_location_apprehension, "OTF") ~ "Interior",
+           str_detect(method_location_apprehension, "TCB") ~ "Interior",
+           str_detect(method_location_apprehension, "ISP") ~ "Border",
+           str_detect(method_location_apprehension, "L") ~ "Interior",
+           str_detect(method_location_apprehension, "REP") ~ "Other",
+           str_detect(method_location_apprehension, "O|0") ~ "Other",
+           is.na(method_location_apprehension) ~ NA_character_,
+            TRUE ~ NA_character_))
+
+```
+
+```{r pop_pyramid}
+
+pop_data <- i213 %>%
+    filter(!is.na(age), !is.na(sex), sex %in% c("M", "F")) %>%
+    mutate(age_group = cut(age,
+                           breaks = c(0, 18, 25, 40, 60, Inf),
+                           right = FALSE)) %>%
+    count(sex, age_group) %>%
+    mutate(n = case_when(sex == "F" ~ -n,
+           TRUE ~ n))
+
+pop_range <- range(pop_data$n)
+pop_range_breaks <- pretty(pop_range, 10)
+
+p1 <- pop_data %>% 
+    ggplot(aes(x = n, y = age_group, fill=sex)) +
+    geom_col() +
+    scale_y_discrete(limits=rev) +
+    scale_x_continuous(breaks = pop_range_breaks,
+                       labels = abs(pop_range_breaks))
+
+p1
+
+```
+
+https://www.njtierney.com/post/2022/08/09/ggplot-pyramid/
+
+```{r pop_pyramid_lawsuit}
+
+pop_data <- i213 %>%
+    filter(!is.na(age), !is.na(sex), sex %in% c("M", "F")) %>%
+    mutate(age_group = cut(age,
+                           breaks = c(0, 18, 25, 40, 60, Inf),
+                           right = FALSE)) %>%
+    count(sex, age_group, lawsuit) %>%
+    mutate(n = case_when(sex == "F" ~ -n,
+           TRUE ~ n))
+
+pop_range <- range(pop_data$n)
+pop_range_breaks <- pretty(pop_range, 10)
+
+p1 <- pop_data %>% 
+    ggplot(aes(x = n, y = age_group, fill=sex)) +
+    geom_col() +
+    scale_y_discrete(limits=rev) +
+    scale_x_continuous(breaks = pop_range_breaks,
+                       labels = abs(pop_range_breaks)) +
+  facet_wrap(~installment)
+
+p1
+
+```
+
+```{r pop_pyramid_state}
+
+pop_data <- i213 %>%
+    filter(!is.na(age), !is.na(sex), sex %in% c("M", "F")) %>%
+    mutate(age_group = cut(age,
+                           breaks = c(0, 18, 25, 40, 60, Inf),
+                           right = FALSE),
+           state = case_when(!state %in% c('WA', 'OR') ~ "ALL OTHERS",
+                             TRUE ~ state)) %>%
+    count(sex, age_group, state) %>%
+    group_by(state) %>% 
+    mutate(prop = n / sum(n)) %>%
+    ungroup() %>% 
+    mutate(n = case_when(sex == "F" ~ -n,
+           TRUE ~ n),
+           prop = case_when(sex == "F" ~ -prop,
+           TRUE ~ prop))
+
+pop_range <- range(pop_data$n)
+pop_range_breaks <- pretty(pop_range, 10)
+
+pop_prop_range <- range(pop_data$prop)
+pop_prop_range_breaks <- pretty(pop_prop_range, 10)
+
+p1 <- pop_data %>% 
+    ggplot(aes(x = n, y = age_group, fill=sex)) +
+    geom_col() +
+    scale_y_discrete(limits=rev) +
+    scale_x_continuous(breaks = pop_range_breaks,
+                       labels = abs(pop_range_breaks)) +
+  facet_wrap(~state)
+
+p1
+
+p2 <- pop_data %>% 
+    ggplot(aes(x = prop, y = age_group, fill=sex)) +
+    geom_col() +
+    scale_y_discrete(limits=rev) +
+    scale_x_continuous(breaks = pop_prop_range_breaks,
+                       labels = abs(pop_prop_range_breaks)) +
+  facet_wrap(~state)
+
+p2
+
+```
+
+```{r pop_pyramid_country}
+
+top_countries <- c("MEXICO",
+                   "INDIA",
+                   "HONDURAS",
+                   "GUATEMALA",
+                   "NICARAGUA",
+                   "EL SALVADOR",
+                   "VENEZUELA",
+                   "CHINA")
+
+
+pop_data <- i213 %>%
+    filter(!is.na(age), !is.na(sex), sex %in% c("M", "F")) %>%
+    mutate(age_group = cut(age,
+                           breaks = c(0, 18, 25, 40, 60, Inf),
+                           right = FALSE),
+           country = case_when(!country_of_citizenship %in% top_countries ~ "ALL OTHERS",
+                             TRUE ~ country_of_citizenship)) %>%
+    count(sex, age_group, country) %>%
+    group_by(country) %>% 
+    mutate(prop = n / sum(n)) %>%
+    ungroup() %>% 
+    mutate(n = case_when(sex == "F" ~ -n,
+           TRUE ~ n),
+           prop = case_when(sex == "F" ~ -prop,
+           TRUE ~ prop))
+
+pop_range <- range(pop_data$n)
+pop_range_breaks <- pretty(pop_range, 10)
+
+pop_prop_range <- range(pop_data$prop)
+pop_prop_range_breaks <- pretty(pop_prop_range, 10)
+
+p1 <- pop_data %>% 
+    ggplot(aes(x = n, y = age_group, fill=sex)) +
+    geom_col() +
+    scale_y_discrete(limits=rev) +
+    scale_x_continuous(breaks = pop_range_breaks,
+                       labels = abs(pop_range_breaks)) +
+  facet_wrap(~country)
+
+p1
+
+p2 <- pop_data %>% 
+    ggplot(aes(x = prop, y = age_group, fill=sex)) +
+    geom_col() +
+    scale_y_discrete(limits=rev) +
+    scale_x_continuous(breaks = pop_prop_range_breaks,
+                       labels = abs(pop_prop_range_breaks)) +
+  facet_wrap(~country)
+
+p2
+
+```
+
+
+```{r pop_method}
+
+pop_data <- i213 %>%
+    filter(!is.na(age), !is.na(sex), sex %in% c("M", "F")) %>%
+    mutate(age_group = cut(age,
+                           breaks = c(0, 18, 25, 40, 60, Inf),
+                           right = FALSE)) %>%
+    count(sex, age_group, method_short) %>%
+    group_by(method_short) %>% 
+    mutate(prop = n / sum(n)) %>%
+    ungroup() %>% 
+    mutate(n = case_when(sex == "F" ~ -n,
+           TRUE ~ n),
+           prop = case_when(sex == "F" ~ -prop,
+           TRUE ~ prop))
+
+pop_range <- range(pop_data$n)
+pop_range_breaks <- pretty(pop_range, 10)
+
+pop_prop_range <- range(pop_data$prop)
+pop_prop_range_breaks <- pretty(pop_prop_range, 10)
+
+p1 <- pop_data %>% 
+    ggplot(aes(x = n, y = age_group, fill=sex)) +
+    geom_col() +
+    scale_y_discrete(limits=rev) +
+    scale_x_continuous(breaks = pop_range_breaks,
+                       labels = abs(pop_range_breaks)) +
+  facet_wrap(~method_short)
+
+p1
+
+p2 <- pop_data %>% 
+    ggplot(aes(x = prop, y = age_group, fill=sex)) +
+    geom_col() +
+    scale_y_discrete(limits=rev) +
+    scale_x_continuous(breaks = pop_prop_range_breaks,
+                       labels = abs(pop_prop_range_breaks)) +
+  facet_wrap(~method_short)
+
+p2
+
+```
+
