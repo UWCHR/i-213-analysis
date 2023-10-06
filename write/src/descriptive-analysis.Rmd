@@ -55,6 +55,26 @@ i213 <- i213 %>%
            str_detect(installment, "2023") ~ 2,
             TRUE ~ 1))
 
+i213$installment <- factor(i213$installment, levels = c("ICE 2020-05",
+"ICE 2020-06",
+"ICE 2020-07",
+"ICE 2020-08",
+"ICE 2020-09",
+"ICE 2020-10",
+"ICE 2020-11",
+"ICE 2020-12",
+"ICE 2021-01",
+"ICE 2021-06",
+"ICE 2023-Pts.1-2",
+"ICE 2023-Pt.3",
+"ICE 2023-Pt.4",
+"ICE 2023-Pt.5",
+"ICE 2023-Pt.6",
+"ICE 2023-Pt.7",
+"ICE 2023-Pt.8",
+"ICE 2023-Pt.9",
+"ICE 2023-Pt.10"))
+
 good_values <- c("ALBINO",
                  "BLACK",
                  "DARK BROWN",
@@ -203,7 +223,7 @@ i213$date <- as.Date(i213$date)
 data <- i213 %>%
   select(date, source, installment, lawsuit) %>%
   filter(date >= '2019-01-01',
-         # date <= '2020-03-31',
+         date <= '2021-12-31',
          source == 'ice')
 
 data$month <- as.Date(cut(data$date, breaks='month'))
@@ -822,6 +842,7 @@ p4 <- i213 %>%
   filter(!is.na(state),
        state %in% c('WA','OR'),
        date >= '2019-01-01',
+       date <= '2022-01-01',
        source == 'ice') %>% 
   count(month, state, country_short) %>% 
   ggplot(aes(x = month, y = n, fill=country_short)) +
