@@ -210,12 +210,13 @@ data$month <- as.Date(cut(data$date, breaks='month'))
 
 p1 <- data %>% ggplot(aes(x = month)) +
   geom_bar() +
-  scale_x_date(labels = scales::date_format("%b"), 
-               breaks = "3 month") +
+  # scale_x_date(labels = scales::date_format("%b"), 
+  #              breaks = "3 month") +
   facet_wrap(~installment) +
   theme(axis.text.x = element_text(angle = 90,
                                    vjust = 0.5,
-                                   hjust = 1))
+                                   hjust = 1)) +
+  labs(title = "I-213 installment distribution")
 
 p1
 
@@ -225,7 +226,8 @@ p2 <- data %>% ggplot(aes(x = month, fill=installment)) +
   #             breaks = "3 month") +
   theme(axis.text.x = element_text(angle = 90,
                                    vjust = 0.5,
-                                   hjust = 1))
+                                   hjust = 1))  +
+  labs(title = "I-213 installment distribution")
 
 p2
 
@@ -235,7 +237,8 @@ p3 <- data %>% ggplot(aes(x = month, fill=as.factor(lawsuit))) +
   #             breaks = "3 month") +
   theme(axis.text.x = element_text(angle = 90,
                                    vjust = 0.5,
-                                   hjust = 1))
+                                   hjust = 1)) +
+  labs(title = "I-213 distribution by lawsuit production")
 
 p3
 
@@ -267,9 +270,154 @@ i213 %>%
 
 ```
 
+## Age/Sex
+
+Distribution of age/sex over full ICE collection. Adult males make up vast majority of population:
+
+```{r population_pyramid}
+
+pop_data <- i213 %>%
+    filter(!is.na(age), !is.na(sex), sex %in% c("M", "F")) %>%
+    mutate(age_group = cut(age,
+                           breaks = c(0, 18, 25, 40, 60, Inf),
+                           right = FALSE),
+           state = case_when(!state %in% c('WA', 'OR') ~ "ALL OTHERS",
+                             TRUE ~ state)) %>%
+    count(sex, age_group) %>%
+    mutate(prop = n / sum(n)) %>%
+    ungroup() %>% 
+    mutate(n = case_when(sex == "F" ~ -n,
+           TRUE ~ n),
+           prop = case_when(sex == "F" ~ -prop,
+           TRUE ~ prop))
+
+pop_prop_range <- range(pop_data$prop)
+pop_prop_range_breaks <- pretty(pop_prop_range, 10)
+
+p1 <- pop_data %>% 
+    ggplot(aes(x = prop, y = age_group, fill=sex)) +
+    geom_col() +
+    scale_y_discrete(limits=rev) +
+    scale_x_continuous(breaks = pop_prop_range_breaks,
+                       labels = function(x) scales::percent(abs(x))) +
+  labs(title = "I-213 forms age/sex distribution")
+
+p1
+
+```
+
+Distribution of age/sex by ICE lawsuit production. Note significantly greater proportion of females and juveniles in second lawsuit collection:
+
+```{r pop_pyramid_lawsuit}
+
+pop_data <- i213 %>%
+    filter(!is.na(age), !is.na(sex), sex %in% c("M", "F")) %>%
+    mutate(age_group = cut(age,
+                           breaks = c(0, 18, 25, 40, 60, Inf),
+                           right = FALSE)) %>%
+    count(sex, age_group, lawsuit) %>%
+    mutate(prop = n / sum(n)) %>%
+    ungroup() %>% 
+    mutate(n = case_when(sex == "F" ~ -n,
+           TRUE ~ n),
+           prop = case_when(sex == "F" ~ -prop,
+           TRUE ~ prop))
+
+pop_prop_range <- range(pop_data$prop)
+pop_prop_range_breaks <- pretty(pop_prop_range, 10)
+
+p1 <- pop_data %>% 
+    ggplot(aes(x = prop, y = age_group, fill=sex)) +
+    geom_col() +
+    scale_y_discrete(limits=rev) +
+    scale_x_continuous(breaks = pop_prop_range_breaks,
+                       labels = function(x) scales::percent(abs(x))) + 
+  facet_wrap(~lawsuit) +
+  labs(title = "I-213 forms age/sex distribution",
+       subtitle = "Subsets by lawsuit production")
+
+p1
+
+```
+
+## Country ranking
+
+Change in rank of most frequent `country_of_citizenship` values by quarter. Note reduction of Mexican nationality in latter portion of time period (second lawsuit production):
+
+```{r country_rank}
+
+my_theme <- function() {
+  # Colors
+  color.background = "white"
+  color.text = "#22211d"
+  # Begin construction of chart
+  theme_bw(base_size=16) +
+    # Format background colors
+    theme(panel.background = element_rect(fill=color.background, color=color.background)) +
+    theme(plot.background  = element_rect(fill=color.background, color=color.background)) +
+    theme(panel.border     = element_rect(color=color.background)) +
+    theme(strip.background = element_rect(fill=color.background, color=color.background)) +
+    # Format the grid
+    theme(panel.grid.major.y = element_blank()) +
+    theme(panel.grid.minor.y = element_blank()) +
+    theme(axis.ticks       = element_blank()) +
+    # Format the legend
+    theme(legend.position = "none") +
+    # Format title and axis labels
+    theme(plot.title       = element_text(color=color.text, size=20, face = "bold")) +
+    theme(axis.title.x     = element_text(size=14, color="black", face = "bold")) +
+    theme(axis.title.y     = element_text(size=14, color="black", face = "bold", vjust=1.25)) +
+    theme(axis.text.x      = element_text(size=10, vjust=0.5, hjust=0, color = color.text)) +
+    theme(axis.text.y      = element_text(size=10, color = color.text)) +
+    theme(strip.text       = element_text(face = "bold")) +
+    # Plot margins
+    theme(plot.margin = unit(c(0.35, 0.2, 0.3, 0.35), "cm"))
+}
+
+show.top.n <- 10
+
+rankings <- i213 %>% 
+  filter(date >= '2019-01-01',
+         date <= '2021-12-31') %>%
+  mutate(country = substr(country_of_citizenship, start = 1, stop = 3)) %>% 
+  count(quarter, country) %>% 
+  arrange(quarter, desc(n), country) %>% 
+  group_by(quarter) %>% 
+  mutate(ranking = row_number(),
+         quarter = as.character(quarter))
+
+rankings <- rankings %>%
+  mutate(flag = ifelse(country %in% c("MEX", "IND", "HON", "GUA", "NIC", "EL ", "VEN", "CHI"), TRUE, FALSE),
+         country_col = if_else(flag == TRUE, country, "zzz"))
+
+p1 <- rankings %>%
+  ggplot(aes(x = quarter, y = ranking, group = country)) +
+  geom_line(aes(color = country_col, alpha=1), linewidth = 2) +
+  geom_point(aes(color = country_col, alpha=1), size = 4) +
+  geom_point(color = "#FFFFFF", size = 1) +
+  scale_y_reverse(breaks = 1:show.top.n) +
+  geom_text(data = rankings %>% filter(quarter == '2019.2'),
+            aes(label = country, x = 0) , hjust = 0, nudge_x=-.1, fontface = "bold", color = "#888888", size = 4) +
+  geom_text(data = rankings %>% filter(quarter == '2022.1'),
+            aes(label = country, x = 14) , hjust = 1.5, fontface = "bold", color = "#888888", size = 4) +
+  coord_cartesian(ylim = c(show.top.n,1)) +
+  theme(legend.position = "none") +
+  labs(x = "Quarter",
+       y = "Rank",
+       title = "SEA AOR I-213s",
+       subtitle = "Country of citizenship rank") +
+  my_theme() +
+  scale_color_manual(values = c("#F70020","#191A1A","#FB9701","#1A7D00","#072C8F", "yellow", 'purple', "lightblue", "grey"))
+
+p1
+
+```
+
 ## Apprehension location: "At/Near"
 
 Most forms include an "At/Near" value indicating the location of the apprehension; in some cases the "At/Near" field includes a reference to "See Narrative", in which case we extract this value from the narrative field or complete by hand. In most cases these values follow a "City, State" format; sometimes codes for specific points of entry (e.g. "PHY" for the Pacific Highway POE in Blaine, WA; or "SEA" for Seatle-Tacoma International Airport in Sea-Tac, WA) or names of specific institutions such as jails or correctional facilities. We have standardized values to "City, State" format and include latitude and longitude values via Google Maps API.
+
+Note that Seattle, WA and Portland, OR are sites of ICE field offices and may include forms processed in those offices but apprehended elsewhere; the same may be true of forms associated with the Northwest Detention Center in Tacoma, WA.
 
 "At/Near" values outside the Pacific Northwest may include subjects apprehended elsewhere and processed by the Seattle ICE Field Office, but I-213 narratives confirm that most apprehensions represented in the dataset occurred in the Pacific Northwest.
 
@@ -280,6 +428,16 @@ i213 %>% count(at_near, sort = TRUE) %>%
 
 i213 %>%
    count(state, sort = TRUE)
+
+rankings <- i213 %>% 
+  filter(date >= '2019-01-01',
+         date <= '2021-12-31') %>%
+  count(quarter, at_near) %>% 
+  arrange(quarter, desc(n), at_near) %>% 
+  group_by(quarter) %>% 
+  mutate(ranking = row_number(),
+         quarter = as.character(quarter)) %>% 
+  filter(ranking <= 5)
 
 ```
 
@@ -318,8 +476,6 @@ ggplot(data = world) +
 I-213 forms include "Location Code" field designating the DHS office and sub-office responsible for the apprehension. Values consist of two three-letter codes separated by a forward-slash ("/"). No public data dictionary translating these codes is known, but they appear to be geographically consistent, as seen below. This analysis suggests that the first part of the code designates the local ICE sub-field office or Border Patrol station, while the second part of the code designates the regional ICE field office or Border Patrol sector, e.g. "RIC/SEA" for Seattle ICE Field Office, Richland, WA Sub-Field Office (largely corresponding a published [map of ICE Enforcement and Removal Operations field offices](https://www.ice.gov/doclib/about/offices/ero/pdf/eroFieldOffices.pdf)); "EUG/POO" for Portland ICE Office, Eugene, OR Sub-Field Office; "SMS/BLW" for Blaine Sector Border Patrol, Sumas Station; "SPK/SPW" for Spokane Sector Border Patrol, Spokane Station (roughly corresponding to a published [table of Border Patrol sectors and stations](https://www.cbp.gov/border-security/along-us-borders/border-patrol-sectors)).
 
 Plotting location codes (with added jitter for visual effect) and simplified codes for DHS offices (with lines encircling points to suggest jurisdictional demarcations) demonstrates the geographic consistency of these values. Some ICE field offices and Border Patrol sectors span multiple counties and states, while others are more localized. Note that the Seattle ICE field office covers the majority of the Seattle "Area of Responsibility" (WA, OR, AK; Alaska records fall under the Anchorage Sub-Field Office, "ANC/ANC"); note also the difference in coverage between the relatively localized Blaine Sector Border Patrol ("BLW") versus the wide geographic range of the Spokane Sector ("SPW"). Note also the overlap of the Seattle, Portland, and Spokane jurisdictions in Central Washington.
-
-I-213 records from April 2020 through November 2021 (second lawsuit production) do not include any forms with location codes "BLW" or "SPW".
 
 ```{r loc_code, message = FALSE, warning = FALSE}
 
@@ -382,6 +538,24 @@ m2
 
 ```
 
+I-213 records from April 2020 through November 2021 (second lawsuit production) do not include any forms with location codes "BLW" or "SPW":
+
+```{r lawsuit_office}
+
+p1 <- i213 %>% 
+  filter(source == 'ice') %>% 
+  count(lawsuit, office) %>% 
+  ggplot(aes(x = office, y=n, fill=as.factor(lawsuit))) +
+  geom_col() +
+  facet_wrap(~lawsuit) +
+  labs(title = "I-213 form office code by lawsuit production")
+  
+
+p1
+
+```
+
+
 ## "Method of Location/Apprehension"
 
 The `method_location_apprehension` field consists of a set of regular alphanumeric codes that apparently describe how the subject of the form was identified or apprehended. No single source defining these codes is known to be publicly available but several are mentioned in various contexts and others can be tentatively decoded using context clues in I-213 narratives. The ten most common codes follow:
@@ -418,56 +592,6 @@ Comparison of proportion of these categories by county is also interesting: note
 
 ```{r method_location_apprehension, message=FALSE, warning=FALSE}
 
-i213 <- i213 %>% 
-  mutate(method_short = case_when(
-           str_detect(method_location_apprehension, "PB") ~ "PB",
-           str_detect(method_location_apprehension, "CFD") ~ "CFD",
-           str_detect(method_location_apprehension, "CST") ~ "CST",
-           str_detect(method_location_apprehension, "CLC") ~ "CLC",
-           str_detect(method_location_apprehension, "NCA") ~ "NCA",
-           str_detect(method_location_apprehension, "LEA") ~ "LEA",
-           str_detect(method_location_apprehension, "OA") ~ "OA",
-           str_detect(method_location_apprehension, "OTF") ~ "OTF",
-           str_detect(method_location_apprehension, "TCB") ~ "TCB",
-           str_detect(method_location_apprehension, "ISP") ~ "ISP",
-           str_detect(method_location_apprehension, "REP") ~ "REP",
-           str_detect(method_location_apprehension, "L") ~ "L",
-           str_detect(method_location_apprehension, "O|0") ~ "O",
-           is.na(method_location_apprehension) ~ NA_character_,
-            TRUE ~ NA_character_),
-         method_verbose = case_when(
-           str_detect(method_location_apprehension, "PB") ~ "Patrol Border",
-           str_detect(method_location_apprehension, "CFD") ~ "CAP Federal",
-           str_detect(method_location_apprehension, "CST") ~ "CAP State",
-           str_detect(method_location_apprehension, "CLC") ~ "CAP Local",
-           str_detect(method_location_apprehension, "NCA") ~ "Non-Custodial Arrest",
-           str_detect(method_location_apprehension, "LEA") ~ "Law Enforcement Assist",
-           str_detect(method_location_apprehension, "OA") ~ "Other Agency",
-           str_detect(method_location_apprehension, "OTF") ~ "Task Force",
-           str_detect(method_location_apprehension, "TCB") ~ "Transportation Check",
-           str_detect(method_location_apprehension, "ISP") ~ "Inspection",
-           str_detect(method_location_apprehension, "REP") ~ "Reprocessed",
-           str_detect(method_location_apprehension, "L") ~ "Located",
-           str_detect(method_location_apprehension, "O|0") ~ "Other",
-           is.na(method_location_apprehension) ~ NA_character_,
-            TRUE ~ NA_character_),
-         method_int_border = case_when(
-           str_detect(method_location_apprehension, "PB") ~ "Border",
-           str_detect(method_location_apprehension, "CFD") ~ "Interior",
-           str_detect(method_location_apprehension, "CST") ~ "Interior",
-           str_detect(method_location_apprehension, "CLC") ~ "Interior",
-           str_detect(method_location_apprehension, "NCA") ~ "Interior",
-           str_detect(method_location_apprehension, "LEA") ~ "Interior",
-           str_detect(method_location_apprehension, "OA") ~ "Interior",
-           str_detect(method_location_apprehension, "OTF") ~ "Interior",
-           str_detect(method_location_apprehension, "TCB") ~ "Interior",
-           str_detect(method_location_apprehension, "ISP") ~ "Border",
-           str_detect(method_location_apprehension, "L") ~ "Interior",
-           str_detect(method_location_apprehension, "REP") ~ "Other",
-           str_detect(method_location_apprehension, "O|0") ~ "Other",
-           is.na(method_location_apprehension) ~ NA_character_,
-            TRUE ~ NA_character_))
-
 i213$date <- as.Date(i213$date)
 
 data <- i213 %>%
@@ -481,24 +605,25 @@ data$month <- as.Date(cut(data$date, breaks='month'))
 p1 <- data %>% 
   ggplot(aes(x = month)) +
   geom_bar() +
-  scale_x_date(labels = scales::date_format("%b"),
-               breaks = "1 month") +
+  # scale_x_date(labels = scales::date_format("%b"),
+  #              breaks = "1 month") +
   facet_wrap(~method_short) +
   theme(axis.text.x = element_text(angle = 90,
                                    vjust = 0.5,
-                                   hjust = 1))
+                                   hjust = 1)) +
+  labs(title = "I-213 Method of location/apprehension dist.")
 
 p1
 
-p2 <- data %>%
-  ggplot(aes(x = method_short)) +
-  geom_bar(aes(fill= method_short)) +
-  facet_wrap(~office) +
-  theme(axis.text.x = element_text(angle = 90,
-                                   vjust = 0.5,
-                                   hjust = 1))
-
-p2
+# p2 <- data %>%
+#   ggplot(aes(x = method_short)) +
+#   geom_bar(aes(fill= method_short)) +
+#   facet_wrap(~office) +
+#   theme(axis.text.x = element_text(angle = 90,
+#                                    vjust = 0.5,
+#                                    hjust = 1))
+# 
+# p2
 
 priority_counties <- read_yaml('../../shared/hand/priority_counties.yaml')
 priority_counties <- append(priority_counties, 'Whatcom County')
@@ -510,7 +635,9 @@ p3 <- data %>%
   scale_y_continuous() +
   theme(axis.text.x = element_text(angle = 90,
                                    vjust = 0.5,
-                                   hjust = 1))
+                                   hjust = 1))  +
+  labs(title = "I-213 Method of location/apprehension prop.",
+       subtitle = "WA priority counties")
 
 p3
 
@@ -525,71 +652,39 @@ p3
 # 
 # p4
 
-p5 <- data %>% 
-  filter(county %in% priority_counties) %>%
-  ggplot(aes(x = county, fill= method_int_border)) +
-  geom_bar() +
-  theme(axis.text.x = element_text(angle = 90,
-                                   vjust = 0.5,
-                                   hjust = 1))
-
-p5
-
-```
-
-```{r method_location_apprehension_city_wa, message = FALSE, warning = FALSE}
-
-data <- i213 %>%
-  select(date, state, source, method_location_apprehension, method_short, method_verbose, kww_in_force, office, county, at_near) %>%
-  filter(!is.na(state),
-         state == 'WA',
-         date >= '2019-01-01',
-         source == 'ice')
-
-at_near_clc <- data %>% group_by(at_near, method_short) %>% 
-  summarise(n = n()) %>% 
-  mutate(percent = n/sum(n)) %>% 
-  filter(method_short == 'CLC')
-
-at_near_clc <- at_near_clc[order(-at_near_clc$n),]
-
-head(at_near_clc, 10)
-
-at_near_assist <- data %>% group_by(at_near, method_short) %>% 
-  summarise(n = n()) %>% 
-  mutate(percent = n/sum(n)) %>% 
-  filter(method_short %in% c('LEA', 'OA', 'OTF'))
-
-at_near_assist <- at_near_assist[order(-at_near_assist$n),]
+# p5 <- data %>% 
+#   filter(county %in% priority_counties) %>%
+#   ggplot(aes(x = county, fill= method_int_border)) +
+#   geom_bar() +
+#   theme(axis.text.x = element_text(angle = 90,
+#                                    vjust = 0.5,
+#                                    hjust = 1)) +
+#   labs(main= "I-213 Method of location/apprehension dist.")
+# 
+# p5
 
 ```
 
-```{r method_location_apprehension_city_or, message = FALSE, warning = FALSE}
+Note significant differences in categorization of I-213 forms by lawsuit production. It is an open question whether this is a result of changes in enforcement practices over time; or different criteria for record production via FOIA.
 
-data <- i213 %>%
-  select(date, state, source, method_location_apprehension, method_short, method_verbose, kww_in_force, office, county, at_near) %>%
-  filter(!is.na(state),
-         state == 'OR',
-         date >= '2019-01-01',
-         source == 'ice')
+```{r method_lawsuit_compare}
 
-at_near_clc <- data %>% group_by(at_near, method_short) %>% 
-  summarise(n = n()) %>% 
-  mutate(percent = n/sum(n)) %>% 
-  filter(method_short == 'CLC')
-
-at_near_clc <- at_near_clc[order(-at_near_clc$n),]
-
-head(at_near_clc, 10)
-
-at_near_assist <- data %>% group_by(at_near, method_short) %>% 
-  summarise(n = n()) %>% 
-  mutate(percent = n/sum(n)) %>% 
-  filter(method_short %in% c('LEA', 'OA', 'OTF'))
-
-at_near_assist <- at_near_assist[order(-at_near_assist$n),]
+p1 <- i213 %>% 
+  filter(source == 'ice') %>% 
+  count(lawsuit, method_short) %>% 
+  ggplot(aes(x = method_short, y=n, fill=method_short)) +
+  geom_col() +
+  facet_wrap(~lawsuit)  +
+  labs(title = "I-213 Method of location/apprehension dist.",
+       subtitle = "Comparisin of lawusit productions")
+  
+p1
 
 ```
+
+### OR
+
+Focus on OR records:
 
 ```{r method_location_apprehension_or, message = FALSE, warning = FALSE}
 
@@ -612,21 +707,10 @@ p1 <- data %>%
   facet_wrap(~method_short) +
   theme(axis.text.x = element_text(angle = 90,
                                    vjust = 0.5,
-                                   hjust = 1))
+                                   hjust = 1)) +
+  labs(title = "OR I-213 forms by method of location/apprehension")
 
 p1
-
-p2 <- data %>%
-    filter(!is.na(state),
-         state == 'OR') %>% 
-  ggplot(aes(x = method_short)) +
-  geom_bar(aes(fill= method_short)) +
-  facet_wrap(~office) +
-  theme(axis.text.x = element_text(angle = 90,
-                                   vjust = 0.5,
-                                   hjust = 1))
-
-p2
 
 p3 <- data %>%
     filter(!is.na(state),
@@ -635,11 +719,13 @@ p3 <- data %>%
   geom_bar() +
   theme(axis.text.x = element_text(angle = 90,
                                    vjust = 0.5,
-                                   hjust = 1))
+                                   hjust = 1)) +
+  labs(title = "OR I-213 forms by county, method of location/apprehension")
+
 
 p3
 
-p4 <- data %>%
+p5 <- data %>%
     filter(!is.na(state),
          state == 'OR') %>% 
   ggplot(aes(x = county, fill= method_verbose)) +
@@ -647,20 +733,23 @@ p4 <- data %>%
   scale_y_continuous(labels = scales::percent) +
   theme(axis.text.x = element_text(angle = 90,
                                    vjust = 0.5,
-                                   hjust = 1))
+                                   hjust = 1)) +
+  labs(title = "OR I-213 forms by county, proportion method of location/apprehension")
 
-p4
+p5
 
-p5 <- data %>%
+p4 <- data %>%
   filter(!is.na(state),
            state %in% c("OR", "WA")) %>% 
   ggplot(aes(x = state, fill= method_verbose)) +
   geom_bar() +
   theme(axis.text.x = element_text(angle = 90,
                                    vjust = 0.5,
-                                   hjust = 1))
+                                   hjust = 1)) +
+  labs(title = "OR I-213 forms by method of location/apprehension")
 
-p5
+
+p4
 
 p6 <- data %>%
     filter(!is.na(state),
@@ -670,7 +759,9 @@ p6 <- data %>%
   scale_y_continuous(labels = scales::percent) +
   theme(axis.text.x = element_text(angle = 90,
                                    vjust = 0.5,
-                                   hjust = 1))
+                                   hjust = 1)) +
+  labs(title = "I-213 forms by proportion method of location/apprehension",
+       subtitle = "WA/OR comparison")
 
 p6
 
@@ -685,86 +776,24 @@ p7 <- data %>%
   theme(axis.text.x = element_text(angle = 90,
                                    vjust = 0.5,
                                    hjust = 1)) +
-  facet_wrap(~method_verbose)
+  facet_wrap(~method_verbose) +
+  labs(title = "OR I-213 forms by method of location/apprehension")
 
 p7
 
 ```
 
-### Mapping "Method of Location/Apprehension"
-
-```{r method_location_apprehension_map, message = FALSE, warning = FALSE}
-
-sites <- i213 %>% select(lon, lat, office, method_short) %>% 
-  na.omit()
-
-sites <- st_as_sf(sites, coords = c("lon", "lat"),
-                   crs = 4326, agr = "constant")
-
-sites <- cbind(sites, st_coordinates(sites))
-
-st_crs(states) <- 4326
-st_crs(states$geom) <- 4326
-st_crs(sites) <- 4326
-st_crs(sites$geometry) <- 4326
-
-m1 <- ggplot() +
-    geom_sf(data = world) +
-    geom_sf(data = states, fill = NA) + 
-    geom_jitter(data = sites, size = 2, shape = 23, width = .1, height = .1, aes(x = X, y = Y, fill = method_short)) +
-    pnw_coords +
-    facet_wrap(~method_short)
-    ggtitle('I-213 forms by approx "at_near" latitude/longitude')
-
-m1
-
-```
-
-## Demographics: Zooming in
-
-### Complexion by location and enforcement type
-
-We can also examine various demographic characteristics in comparison with the above categories; note below the only "Method of Location/Apprehension" category with a majority of apprehensions reported as being of people with "Fair" or "Light" complexion is "ISP" or "Inspection" at authorized points of entry.
-
-```{r cmplxn_by_loc_meth, message=FALSE, warning=FALSE}
-
-p1 <- i213 %>%
-  ggplot(aes(x = cmplxn, fill= cmplxn)) +
-  geom_bar() +
-  facet_wrap(~office) +
-  theme(axis.text.x = element_text(angle = 90,
-                                   vjust = 0.5,
-                                   hjust = 1))
-
-p1
-
-p2 <- i213 %>%
-  ggplot(aes(x = cmplxn, fill= cmplxn)) +
-  geom_bar() +
-  facet_wrap(~method_short) +
-  theme(axis.text.x = element_text(angle = 90,
-                                   vjust = 0.5,
-                                   hjust = 1))
-
-p2
-
-```
-
 ### Country of origin
 
-A few views of most common "Country of Origin" categories. All others have <50 records in collection.
+A few views of most common "Country of Origin" categories.
 
 ```{r country_by_loc_meth, message=FALSE, warning=FALSE}
 
+top <- c("MEXICO", "INDIA", "HONDURAS", "GUATEMALA", "NICARAGUA", "EL SALVADOR", "VENEZUELA", "CHINA")
+
 i213 <- i213 %>% 
-  mutate(country_short = case_when(
-         str_detect(country_of_citizenship, "MEXICO") ~ "MEXICO",
-         str_detect(country_of_citizenship, "GUATEMALA") ~ "GUATEMALA",
-         str_detect(country_of_citizenship, "INDIA") ~ "INDIA",
-         str_detect(country_of_citizenship, "HONDURAS") ~ "HONDURAS",
-         str_detect(country_of_citizenship, "EL SALVADOR") ~ "EL SALVADOR",
-         str_detect(country_of_citizenship, "CHINA") ~ "CHINA",
-         is.na(country_of_citizenship) ~ NA_character_,
+  filter(!is.na(country_of_citizenship)) %>% 
+  mutate(country_short = case_when(country_of_citizenship %in% top ~ country_of_citizenship,
          TRUE ~ "ALL OTHERS"))
 
 p1 <- i213 %>%
@@ -778,38 +807,26 @@ p1 <- i213 %>%
 p1
 
 p2 <- i213 %>%
-  ggplot(aes(x = country_short, fill= country_short)) +
+  ggplot(aes(x = method_short, fill= method_short)) +
   geom_bar() +
-  facet_wrap(~method_short) +
+  facet_wrap(~country_short) +
   theme(axis.text.x = element_text(angle = 90,
                                    vjust = 0.5,
                                    hjust = 1))
 
 p2
 
-p3 <- i213 %>% 
-  filter(county %in% priority_counties) %>% 
-  ggplot(aes(x = county, fill= country_short)) +
-  geom_bar(position = "fill") +
-  scale_y_continuous(labels = scales::percent) +
-  theme(axis.text.x = element_text(angle = 90,
-                                   vjust = 0.5,
-                                   hjust = 1))
-
-p3
-
 i213$month <- as.Date(cut(i213$date, breaks='month'))
 
 p4 <- i213 %>% 
   filter(!is.na(state),
-       state == 'WA',
+       state %in% c('WA','OR'),
        date >= '2019-01-01',
        source == 'ice') %>% 
-  ggplot(aes(x = month)) +
-  geom_bar() +
-  scale_x_date(labels = scales::date_format("%b"),
-               breaks = "1 month") +
-  facet_wrap(~country_short) +
+  count(month, state, country_short) %>% 
+  ggplot(aes(x = month, y = n, fill=country_short)) +
+  geom_col() +
+  facet_wrap(~state) +
   theme(axis.text.x = element_text(angle = 90,
                                    vjust = 0.5,
                                    hjust = 1))
