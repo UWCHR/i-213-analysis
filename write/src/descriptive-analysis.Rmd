@@ -328,14 +328,16 @@ p1
 
 Distribution of age/sex by ICE lawsuit production. Note significantly greater proportion of females and juveniles in second lawsuit collection:
 
-```{r pop_pyramid_lawsuit}
+```{r pop_pyramid_lawsuit, warning=FALSE, message=FALSE}
 
 pop_data <- i213 %>%
     filter(!is.na(age), !is.na(sex), sex %in% c("M", "F")) %>%
     mutate(age_group = cut(age,
                            breaks = c(0, 18, 25, 40, 60, Inf),
                            right = FALSE)) %>%
-    count(sex, age_group, lawsuit) %>%
+    group_by(sex, age_group, lawsuit) %>% 
+    summarize(n = n()) %>% 
+    group_by(lawsuit) %>% 
     mutate(prop = n / sum(n)) %>%
     ungroup() %>% 
     mutate(n = case_when(sex == "F" ~ -n,
