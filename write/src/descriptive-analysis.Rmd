@@ -858,6 +858,114 @@ p4
 
 ```
 
+## `imm_record` and `crim_record`
+
+```{r imm_record, message=FALSE, warning=FALSE}
+
+i213 <- i213 %>% 
+  mutate(imm_record = case_when(str_detect(imm_record, "NEGATIVE") ~ "NEGATIVE",
+                                str_detect(imm_record, "NBGATIVB") ~ "NEGATIVE",
+                                str_detect(imm_record, "POSITIVE") ~ "POSITIVE",
+                                TRUE ~ NA_character_))
+
+i213 %>%
+  count(lawsuit,imm_record) %>% 
+  arrange(desc(n))
+
+i213 %>%
+  filter(state %in% c('WA', 'OR')) %>% 
+  count(state,imm_record) %>% 
+  arrange(desc(n))
+
+i213 %>%
+  filter(date >= '2019-01-01',
+         date <= '2021-12-31') %>% 
+  count(imm_record, quarter) %>% 
+  ggplot(aes(x=as.factor(quarter), y=n, fill=imm_record)) +
+  geom_col()
+
+i213 %>%
+  filter(date >= '2019-01-01',
+         date <= '2021-12-31') %>% 
+  count(imm_record, office, quarter) %>% 
+  ggplot(aes(x=as.factor(quarter), y=n, fill=imm_record)) +
+  geom_col() +
+  facet_wrap(~office)
+
+i213 %>%
+  filter(date >= '2019-01-01',
+         date <= '2021-12-31',
+         state %in% c('WA', 'OR') | is.na(state)) %>% 
+  count(imm_record, state, quarter) %>% 
+  ggplot(aes(x=as.factor(quarter), y=n, fill=imm_record)) +
+  geom_col() +
+  facet_wrap(~state)
+
+i213 %>%
+  count(imm_record, method_short) %>% 
+  ggplot(aes(x=as.factor(method_short), y=n, fill=imm_record)) +
+  geom_col()
+
+i213 %>%
+  filter(date >= '2019-01-01',
+         date <= '2021-12-31',
+         state %in% c('WA', 'OR'),
+         !is.na(imm_record),
+         !is.na(method_short)) %>% 
+  count(imm_record, state, method_short, quarter) %>% 
+  ggplot(aes(x=as.factor(quarter), y=n, fill=imm_record)) +
+  geom_col(position='fill') +
+  facet_grid(method_short ~ state)
+
+```
+
+```{r crim_record, message=FALSE, warning=FALSE}
+
+i213 <- i213 %>% 
+  mutate(crim_record = case_when(str_detect(crim_record, "See Narrative") ~ "See Narrative",
+                                str_detect(crim_record, "None Known") ~ "None Known",
+                                TRUE ~ NA_character_))
+
+i213 %>%
+  count(lawsuit,crim_record) %>% 
+  arrange(desc(n))
+
+i213 %>%
+  filter(state %in% c('WA', 'OR')) %>% 
+  count(state,crim_record) %>% 
+  arrange(desc(n))
+
+i213 %>%
+  count(crim_record, method_short) %>% 
+  ggplot(aes(x=as.factor(method_short), y=n, fill=crim_record)) +
+  geom_col()
+
+i213 %>%
+  filter(date >= '2019-01-01',
+         date <= '2021-12-31',
+         state %in% c('WA', 'OR'),
+         !is.na(crim_record),
+         !is.na(method_short)) %>% 
+  count(crim_record, state, method_short, quarter) %>% 
+  ggplot(aes(x=as.factor(quarter), y=n, fill=crim_record)) +
+  geom_col(position='fill') +
+  facet_grid(method_short ~ state)
+
+i213 %>%
+  filter(date >= '2019-01-01',
+         date <= '2021-12-31') %>% 
+  count(crim_record, office, method_short) %>% 
+  ggplot(aes(x=n, y=method_short, fill=crim_record)) +
+  geom_col() +
+  facet_grid(~ office)
+
+i213 %>%
+  count(crim_record, imm_record) %>% 
+  ggplot(aes(x=crim_record, y=n, fill=imm_record)) +
+  geom_col(position='fill')
+
+```
+
 ## Mapping "mentions_*"
 
 A few passes at mapping records that mention keywords.
