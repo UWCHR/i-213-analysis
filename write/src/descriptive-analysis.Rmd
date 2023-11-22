@@ -637,15 +637,15 @@ p1 <- data %>%
 
 p1
 
-# p2 <- data %>%
-#   ggplot(aes(x = method_short)) +
-#   geom_bar(aes(fill= method_short)) +
-#   facet_wrap(~office) +
-#   theme(axis.text.x = element_text(angle = 90,
-#                                    vjust = 0.5,
-#                                    hjust = 1))
-# 
-# p2
+p2 <- data %>%
+  ggplot(aes(x = method_short)) +
+  geom_bar(aes(fill= method_short)) +
+  facet_wrap(~office) +
+  theme(axis.text.x = element_text(angle = 90,
+                                   vjust = 0.5,
+                                   hjust = 1))
+
+p2
 
 priority_counties <- read_yaml('../../shared/hand/priority_counties.yaml')
 priority_counties <- append(priority_counties, 'Whatcom County')
