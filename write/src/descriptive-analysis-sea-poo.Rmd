@@ -598,9 +598,56 @@ p1 <- i213 %>%
   geom_col() +
   facet_wrap(~lawsuit)  +
   labs(title = "I-213 Method of location/apprehension dist.",
-       subtitle = "Comparison of lawusit productions")
+       subtitle = "Comparison of lawsuit productions")
   
 p1
+
+```
+
+These codes do not always correspond with local custody; may also involve DOC custody.
+
+```{r CLC_lawsuit_compare}
+
+p1 <- i213 %>% 
+  filter(source == 'ice',
+         state == 'WA') %>% 
+  mutate(clc = case_when(method_short == "CLC" ~ TRUE,
+                         TRUE ~ FALSE)) %>% 
+  count(lawsuit, county, clc) %>% 
+  ggplot(aes(x = n, y=county, fill=clc)) +
+  geom_col() +
+  facet_wrap(~lawsuit)  +
+  labs(title = "I-213 Method of location/apprehension dist.",
+       subtitle = "Comparison of lawsuit productions")
+  
+p1
+
+p2 <- i213 %>% 
+  filter(source == 'ice',
+         state == 'WA') %>% 
+  mutate(clc = case_when(method_short == "CLC" ~ TRUE,
+                         TRUE ~ FALSE)) %>% 
+  count(lawsuit, county, clc) %>% 
+  ggplot(aes(x = n, y=county, fill=clc)) +
+  geom_col(position = "fill") +
+  facet_wrap(~lawsuit)  +
+  labs(title = "I-213 Method of location/apprehension dist.",
+       subtitle = "Comparison of lawsuit productions")
+  
+p2
+
+p3 <- i213 %>% 
+  filter(source == 'ice',
+         state == 'WA',
+         method_short == 'CLC') %>% 
+  count(lawsuit, county, method_short) %>% 
+  ggplot(aes(x = n, y=county, fill=method_short)) +
+  geom_col() +
+  facet_wrap(~lawsuit)  +
+  labs(title = "I-213 Method of location/apprehension dist.",
+       subtitle = "Comparison of lawsuit productions")
+  
+p3
 
 ```
 
