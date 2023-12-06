@@ -748,6 +748,21 @@ p7 <- data %>%
 
 p7
 
+p8 <- data %>%
+    filter(!is.na(state),
+         state == 'WA') %>% 
+  group_by(month, method_verbose) %>% 
+  summarize(n = n()) %>% 
+  ggplot(aes(x = month, y=n, fill= method_verbose)) +
+  geom_col() +
+  theme(axis.text.x = element_text(angle = 90,
+                                   vjust = 0.5,
+                                   hjust = 1)) +
+  facet_wrap(~method_verbose) +
+  labs(title = "WA I-213 forms by method of location/apprehension")
+
+p8
+
 ```
 
 ### Country of origin
