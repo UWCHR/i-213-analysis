@@ -1,0 +1,297 @@
+---
+title: Comparison of I-213 collection with ICE ERO LESA aggregate statistics
+author:
+- "[Phil Neff](https://github.com/philneff)"
+date: 1 December, 2023
+output:
+    html_document:
+        html_preview: true
+        toc: true
+        toc_depth: 3
+        toc_float: true
+        code_folding: hide
+---
+
+```{r import_i213, message = FALSE, warning = FALSE}
+
+pacman::p_load(tidyverse, lubridate, here, skimr, yaml, ggplot2, ggalt, gplots,
+               sf, rnaturalearth, rnaturalearthdata, maps, tools, RColorBrewer
+               )
+
+inputfile <- here::here("compare/input/uw-chr-i213-public.csv.gz")
+
+i213 <- read_delim(
+    inputfile, delim = "|", 
+    col_types = cols(
+        # .default                     = col_character(),
+        source                       = col_character(),
+        sex                          = col_character(),
+        cmplxn                       = col_character(),
+        country_of_citizenship       = col_factor(),
+        year                         = col_double(),
+        month                        = col_double(),
+        day                          = col_double(),
+        hour                         = col_double(),
+        minute                       = col_double(),
+        fy                           = col_double(),
+        age                          = col_double(),
+        accompanied_juvenile_flag    = col_double(),
+        unaccompanied_juvenile_flag  = col_double(),
+        custody_redetermination_flag = col_double()
+))
+
+```
+
+```{r i213_cleaning}
+
+i213 <- i213 %>%
+  mutate(across(where(is.character), ~ na_if(.,"")))
+
+i213$date <- as.Date(i213$date)
+i213$month <- as.Date(cut(i213$date, breaks='month'))
+
+i213 <- i213 %>% 
+  mutate(lawsuit = case_when(
+           str_detect(installment, "2023") ~ 2,
+            TRUE ~ 1))
+
+i213$installment <- factor(i213$installment, levels = c("ICE 2020-05",
+"ICE 2020-06",
+"ICE 2020-07",
+"ICE 2020-08",
+"ICE 2020-09",
+"ICE 2020-10",
+"ICE 2020-11",
+"ICE 2020-12",
+"ICE 2021-01",
+"ICE 2021-06",
+"ICE 2023-Pts.1-2",
+"ICE 2023-Pt.3",
+"ICE 2023-Pt.4",
+"ICE 2023-Pt.5",
+"ICE 2023-Pt.6",
+"ICE 2023-Pt.7",
+"ICE 2023-Pt.8",
+"ICE 2023-Pt.9",
+"ICE 2023-Pt.10"))
+
+good_values <- c("ALBINO",
+                 "BLACK",
+                 "DARK BROWN",
+                 "DARK",
+                 "FAIR",
+                 "LIGHT BROWN",
+                 "LIGHT",
+                 "MEDIUM BROWN",
+                 "MEDIUM",
+                 "OLIVE",
+                 "RUDDY",
+                 "SALLOW",
+                 "YELLOW")
+
+i213 <- i213 %>% mutate(cmplxn = case_when(
+         cmplxn %in% good_values ~ cmplxn,
+         is.na(cmplxn) ~ NA_character_,
+         TRUE ~ "OTHER"))
+
+i213$office <- str_match(i213$location_code, "SEA|POO|BLW|SPW")
+
+i213 <- i213 %>% 
+  mutate(method_short = case_when(
+           str_detect(method_location_apprehension, "PB") ~ "PB",
+           str_detect(method_location_apprehension, "CFD") ~ "CFD",
+           str_detect(method_location_apprehension, "CST") ~ "CST",
+           str_detect(method_location_apprehension, "CLC") ~ "CLC",
+           str_detect(method_location_apprehension, "NCA") ~ "NCA",
+           str_detect(method_location_apprehension, "LEA") ~ "LEA",
+           str_detect(method_location_apprehension, "OA") ~ "OA",
+           str_detect(method_location_apprehension, "OTF") ~ "OTF",
+           str_detect(method_location_apprehension, "TCB") ~ "TCB",
+           str_detect(method_location_apprehension, "ISP") ~ "ISP",
+           str_detect(method_location_apprehension, "REP") ~ "REP",
+           str_detect(method_location_apprehension, "L") ~ "L",
+           str_detect(method_location_apprehension, "O|0") ~ "O",
+           is.na(method_location_apprehension) ~ NA_character_,
+            TRUE ~ NA_character_),
+         method_verbose = case_when(
+           str_detect(method_location_apprehension, "PB") ~ "Patrol Border",
+           str_detect(method_location_apprehension, "CFD") ~ "CAP Federal",
+           str_detect(method_location_apprehension, "CST") ~ "CAP State",
+           str_detect(method_location_apprehension, "CLC") ~ "CAP Local",
+           str_detect(method_location_apprehension, "NCA") ~ "Non-Custodial Arrest",
+           str_detect(method_location_apprehension, "LEA") ~ "Law Enforcement Assist",
+           str_detect(method_location_apprehension, "OA") ~ "Other Agency",
+           str_detect(method_location_apprehension, "OTF") ~ "Task Force",
+           str_detect(method_location_apprehension, "TCB") ~ "Transportation Check",
+           str_detect(method_location_apprehension, "ISP") ~ "Inspection",
+           str_detect(method_location_apprehension, "REP") ~ "Reprocessed",
+           str_detect(method_location_apprehension, "L") ~ "Located",
+           str_detect(method_location_apprehension, "O|0") ~ "Other",
+           is.na(method_location_apprehension) ~ NA_character_,
+            TRUE ~ NA_character_),
+         method_int_border = case_when(
+           str_detect(method_location_apprehension, "PB") ~ "Border",
+           str_detect(method_location_apprehension, "CFD") ~ "Interior",
+           str_detect(method_location_apprehension, "CST") ~ "Interior",
+           str_detect(method_location_apprehension, "CLC") ~ "Interior",
+           str_detect(method_location_apprehension, "NCA") ~ "Interior",
+           str_detect(method_location_apprehension, "LEA") ~ "Interior",
+           str_detect(method_location_apprehension, "OA") ~ "Interior",
+           str_detect(method_location_apprehension, "OTF") ~ "Interior",
+           str_detect(method_location_apprehension, "TCB") ~ "Interior",
+           str_detect(method_location_apprehension, "ISP") ~ "Border",
+           str_detect(method_location_apprehension, "L") ~ "Interior",
+           str_detect(method_location_apprehension, "REP") ~ "Other",
+           str_detect(method_location_apprehension, "O|0") ~ "Other",
+           is.na(method_location_apprehension) ~ NA_character_,
+            TRUE ~ NA_character_))
+```
+
+
+```{r import_erolesa, message = FALSE, warning = FALSE}
+
+inputfile <- here::here("compare/input/arrests_by_method.csv.gz")
+
+erolesa <- read_delim(
+    inputfile, delim = "|"
+)
+
+erolesa <- erolesa %>% 
+  filter(aor=="SEA")
+
+erolesa_methods <- unique(erolesa$arrest_method)
+
+erolesa <- erolesa %>% 
+  mutate(method_short = case_when(
+	   str_detect(arrest_method, "cap local incarceration") ~ "CLC",
+	   str_detect(arrest_method, "cap federal incarceration") ~ "CFD",
+	   str_detect(arrest_method, "cap state incarceration") ~ "CST",
+	   str_detect(arrest_method, "located") ~ "L",
+	   str_detect(arrest_method, "other efforts" ) ~ "O",
+	   str_detect(arrest_method, "non-custodial arrest") ~ "NCA",
+	   str_detect(arrest_method, "ero reprocessed arrest" ) ~ "REP",
+	   str_detect(arrest_method, "law enforcement agency response unit") ~ "LEA",
+	   str_detect(arrest_method, "other agency (turned over to ins)" ) ~ "OA",
+	   str_detect(arrest_method, "other task force") ~ "OTF",
+	   str_detect(arrest_method, "287(g) program" ) ~ "287(g)",
+	   str_detect(arrest_method, "probation and parole") ~ "PP",
+	   str_detect(arrest_method, "worksite enforcement" ) ~ "WE",
+	   str_detect(arrest_method, "organized crime drug enforcement task force") ~ "OTF",
+	   str_detect(arrest_method, "criminal alien program") ~ "CAP",
+	   str_detect(arrest_method, "arrest (fugitive alien removal)") ~ "L",
+	   is.na(arrest_method) ~ NA_character_,
+       TRUE ~ NA_character_
+	   ))
+
+erolesa$date <- as.Date(erolesa$arrest_date)
+erolesa$month <- as.Date(cut(erolesa$date, breaks='month'))
+
+```
+
+```{r join}
+
+i213_daily <- i213 %>% 
+  count(date, method_short) 
+
+i213_monthly <- i213 %>% 
+  count(month, method_short) 
+
+i213_seapoo_monthly <- i213 %>% 
+  filter(office %in% c('SEA', 'POO')) %>% 
+  count(month, method_short) 
+
+i213_daily$source <- "I-213s"
+i213_monthly$source <- "I-213s"
+i213_seapoo_monthly$source <- "I-213s (SEA/POO)"
+
+erolesa$source <- "ICE ERO LESA"
+
+erolesa_temp <- erolesa %>% 
+  dplyr::select(month, method_short, n, source)
+
+compare <- rbind(i213_monthly, i213_seapoo_monthly, erolesa_temp)
+
+compare_monthly <- compare %>% 
+  group_by(month, method_short, source) %>% 
+  summarize(n = sum(n))
+
+compare_monthly_total <- compare %>% 
+  group_by(month, source) %>% 
+  summarize(n = sum(n))
+
+```
+
+```{r plot_total}
+
+p1 <- compare_monthly_total %>% 
+  ggplot(aes(x = month, y = n, color=source, group=source)) +
+  geom_line()
+
+p1
+
+```
+
+```{r plot_methods}
+
+p1 <- compare_monthly %>%
+  ggplot(aes(x = month, y = n, color=source, group=source)) +
+  geom_line() +
+  facet_wrap(~method_short)
+
+p1
+
+p2 <- compare_monthly %>%
+  filter(method_short == "CLC",
+         month >= '2018-10-01') %>% 
+  ggplot(aes(x = month, y = n, color=source, group=source)) +
+  geom_line() +
+  facet_wrap(~method_short)
+
+p2
+
+p3 <- compare_monthly %>%
+  filter(method_short == "CST",
+         month >= '2018-10-01') %>% 
+  ggplot(aes(x = month, y = n, color=source, group=source)) +
+  geom_line() +
+  facet_wrap(~method_short)
+
+p3
+
+p4 <- compare_monthly %>%
+  filter(method_short == "CFD",
+         month >= '2018-10-01') %>% 
+  ggplot(aes(x = month, y = n, color=source, fill=source, group=source)) +
+  geom_line() +
+  facet_wrap(~method_short)
+
+p4
+
+p5 <- compare_monthly %>%
+  filter(method_short == "NCA",
+         month >= '2018-10-01') %>% 
+  ggplot(aes(x = month, y = n, color=source, fill=source, group=source)) +
+  geom_line() +
+  facet_wrap(~method_short)
+
+p5
+
+p6 <- compare_monthly %>%
+  filter(method_short == "L",
+         month >= '2018-10-01') %>% 
+  ggplot(aes(x = month, y = n, color=source, fill=source, group=source)) +
+  geom_line() +
+  facet_wrap(~method_short)
+
+p6
+
+p7 <- compare_monthly %>%
+  filter(method_short == "REP",
+         month >= '2018-10-01') %>% 
+  ggplot(aes(x = month, y = n, color=source, fill=source, group=source)) +
+  geom_line() +
+  facet_wrap(~method_short)
+
+p7
+
+```
