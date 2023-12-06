@@ -882,3 +882,100 @@ i213 %>%
   geom_col(position='fill')
 
 ```
+
+```{r mentions}
+
+# Mentions of prosecutorial discretion relatively steady
+
+p1 <- i213 %>% 
+  filter(date >= '2019-01-01',
+         date <= '2021-11-30') %>% 
+  count(month, mentions_prosecutorial_disc) %>% 
+  ggplot(aes(x=month, y=n, fill=mentions_prosecutorial_disc)) +
+  geom_col()
+
+p1
+
+# "Self-report" or "as instructed" appearances increased greatly
+
+p2 <- i213 %>% 
+  filter(date >= '2019-01-01',
+         date <= '2021-11-30') %>% 
+  count(month, mentions_self_report) %>% 
+  ggplot(aes(x=month, y=n, fill=mentions_self_report)) +
+  geom_col()
+
+p2
+
+# Mentions of detainer not clear trend, note includes cases where detainer lodged but not honored
+
+p3 <- i213 %>% 
+  filter(date >= '2019-01-01',
+         date <= '2021-11-30') %>% 
+  count(month, mentions_detainer) %>% 
+  ggplot(aes(x=month, y=n, fill=mentions_detainer)) +
+  geom_col()
+
+p3
+
+# Proportion of records mentioning "jail" down
+
+p4 <- i213 %>% 
+  filter(date >= '2019-01-01',
+         date <= '2021-11-30') %>% 
+  count(month, mentions_jail) %>% 
+  ggplot(aes(x=month, y=n, fill=mentions_jail)) +
+  geom_col()
+
+p4
+
+p5 <- i213 %>% 
+  filter(date >= '2019-01-01',
+         date <= '2021-11-30') %>% 
+  count(month, mentions_secure_comm) %>% 
+  ggplot(aes(x=month, y=n, fill=mentions_secure_comm)) +
+  geom_col()
+
+p5
+
+p6 <- i213 %>% 
+  filter(date >= '2019-01-01',
+         date <= '2021-11-30') %>% 
+  count(month, mentions_sheriff) %>% 
+  ggplot(aes(x=month, y=n, fill=mentions_sheriff)) +
+  geom_col()
+
+p6
+
+# Greater proportion of records mention "prison" during height of COVID
+
+p7 <- i213 %>% 
+  filter(date >= '2019-01-01',
+         date <= '2021-11-30') %>% 
+  count(month, mentions_prison) %>% 
+  ggplot(aes(x=month, y=n, fill=mentions_prison)) +
+  geom_col()
+
+p7
+
+p8 <- i213 %>% 
+  filter(date >= '2019-01-01',
+         date <= '2021-11-30') %>% 
+  count(month, mentions_airport) %>% 
+  ggplot(aes(x=month, y=n, fill=mentions_airport)) +
+  geom_col()
+
+p8
+
+p9 <- i213 %>% 
+  filter(date >= '2019-01-01',
+         date <= '2021-11-30') %>% 
+  count(month, mentions_surveillance) %>% 
+  ggplot(aes(x=month, y=n, fill=mentions_surveillance)) +
+  geom_col()
+
+p9
+
+```
+
+

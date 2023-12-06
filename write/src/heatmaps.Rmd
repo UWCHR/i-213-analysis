@@ -149,6 +149,7 @@ i213 <- i213 %>%
          str_detect(method_location_apprehension, "TCB") ~ "TCB",
          str_detect(method_location_apprehension, "ISP") ~ "ISP",
          str_detect(method_location_apprehension, "L") ~ "L",
+         str_detect(method_location_apprehension, "REP") ~ "REP",
          str_detect(method_location_apprehension, "O|0") ~ "LEA/OTF/O",
          is.na(method_location_apprehension) ~ NA_character_,
          TRUE ~ "OTHER"))
