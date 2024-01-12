@@ -188,7 +188,8 @@ erolesa$month <- as.Date(cut(erolesa$date, breaks='month'))
 
 ```
 
-```{r join}
+
+```{r join_method}
 
 i213_daily <- i213 %>% 
   count(date, method_short) 

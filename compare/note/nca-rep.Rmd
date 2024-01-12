@@ -1,0 +1,326 @@
+---
+title: I-213 narrative corpus analysis
+author:
+- "[Phil Neff](https://github.com/philneff)"
+date: 8 December, 2023
+output:
+    html_document:
+        html_preview: true
+        toc: true
+        toc_depth: 3
+        toc_float: true
+        code_folding: hide
+---
+
+
+```{r import, message = FALSE, warning = FALSE}
+
+pacman::p_load(tidyverse, lubridate, here, skimr, yaml, ggplot2, ggrepel, zoo, plotly)
+
+inputfile <- here::here("compare/input/uw-chr-i213-public.csv.gz")
+
+i213 <- read_delim(
+    inputfile, delim = "|", 
+    col_types = cols(
+        # .default                     = col_character(),
+        source                       = col_character(),
+        sex                          = col_character(),
+        cmplxn                       = col_character(),
+        country_of_citizenship       = col_factor(),
+        year                         = col_double(),
+        month                        = col_double(),
+        day                          = col_double(),
+        hour                         = col_double(),
+        minute                       = col_double(),
+        fy                           = col_double(),
+        age                          = col_double(),
+        accompanied_juvenile_flag    = col_double(),
+        unaccompanied_juvenile_flag  = col_double(),
+        custody_redetermination_flag = col_double()
+))
+
+```
+
+```{r i213_cleaning}
+
+i213 <- i213 %>%
+  mutate(across(where(is.character), ~ na_if(.,"")))
+
+i213$date <- as.Date(i213$date)
+i213$month <- as.Date(cut(i213$date, breaks='month'))
+
+i213 <- i213 %>% 
+  mutate(lawsuit = case_when(
+           str_detect(installment, "2023") ~ 2,
+            TRUE ~ 1))
+
+i213$installment <- factor(i213$installment, levels = c("ICE 2020-05",
+"ICE 2020-06",
+"ICE 2020-07",
+"ICE 2020-08",
+"ICE 2020-09",
+"ICE 2020-10",
+"ICE 2020-11",
+"ICE 2020-12",
+"ICE 2021-01",
+"ICE 2021-06",
+"ICE 2023-Pts.1-2",
+"ICE 2023-Pt.3",
+"ICE 2023-Pt.4",
+"ICE 2023-Pt.5",
+"ICE 2023-Pt.6",
+"ICE 2023-Pt.7",
+"ICE 2023-Pt.8",
+"ICE 2023-Pt.9",
+"ICE 2023-Pt.10"))
+
+good_values <- c("ALBINO",
+                 "BLACK",
+                 "DARK BROWN",
+                 "DARK",
+                 "FAIR",
+                 "LIGHT BROWN",
+                 "LIGHT",
+                 "MEDIUM BROWN",
+                 "MEDIUM",
+                 "OLIVE",
+                 "RUDDY",
+                 "SALLOW",
+                 "YELLOW")
+
+i213 <- i213 %>% mutate(cmplxn = case_when(
+         cmplxn %in% good_values ~ cmplxn,
+         is.na(cmplxn) ~ NA_character_,
+         TRUE ~ "OTHER"))
+
+i213$office <- str_match(i213$location_code, "SEA|POO|BLW|SPW")
+
+i213 <- i213 %>% 
+  mutate(method_short = case_when(
+           str_detect(method_location_apprehension, "PB") ~ "PB",
+           str_detect(method_location_apprehension, "CFD") ~ "CFD",
+           str_detect(method_location_apprehension, "CST") ~ "CST",
+           str_detect(method_location_apprehension, "CLC") ~ "CLC",
+           str_detect(method_location_apprehension, "NCA") ~ "NCA",
+           str_detect(method_location_apprehension, "LEA") ~ "LEA",
+           str_detect(method_location_apprehension, "OA") ~ "OA",
+           str_detect(method_location_apprehension, "OTF") ~ "OTF",
+           str_detect(method_location_apprehension, "TCB") ~ "TCB",
+           str_detect(method_location_apprehension, "ISP") ~ "ISP",
+           str_detect(method_location_apprehension, "REP") ~ "REP",
+           str_detect(method_location_apprehension, "L") ~ "L",
+           str_detect(method_location_apprehension, "O|0") ~ "O",
+           is.na(method_location_apprehension) ~ NA_character_,
+            TRUE ~ NA_character_),
+         method_verbose = case_when(
+           str_detect(method_location_apprehension, "PB") ~ "Patrol Border",
+           str_detect(method_location_apprehension, "CFD") ~ "CAP Federal",
+           str_detect(method_location_apprehension, "CST") ~ "CAP State",
+           str_detect(method_location_apprehension, "CLC") ~ "CAP Local",
+           str_detect(method_location_apprehension, "NCA") ~ "Non-Custodial Arrest",
+           str_detect(method_location_apprehension, "LEA") ~ "Law Enforcement Assist",
+           str_detect(method_location_apprehension, "OA") ~ "Other Agency",
+           str_detect(method_location_apprehension, "OTF") ~ "Task Force",
+           str_detect(method_location_apprehension, "TCB") ~ "Transportation Check",
+           str_detect(method_location_apprehension, "ISP") ~ "Inspection",
+           str_detect(method_location_apprehension, "REP") ~ "Reprocessed",
+           str_detect(method_location_apprehension, "L") ~ "Located",
+           str_detect(method_location_apprehension, "O|0") ~ "Other",
+           is.na(method_location_apprehension) ~ NA_character_,
+            TRUE ~ NA_character_),
+         method_int_border = case_when(
+           str_detect(method_location_apprehension, "PB") ~ "Border",
+           str_detect(method_location_apprehension, "CFD") ~ "Interior",
+           str_detect(method_location_apprehension, "CST") ~ "Interior",
+           str_detect(method_location_apprehension, "CLC") ~ "Interior",
+           str_detect(method_location_apprehension, "NCA") ~ "Interior",
+           str_detect(method_location_apprehension, "LEA") ~ "Interior",
+           str_detect(method_location_apprehension, "OA") ~ "Interior",
+           str_detect(method_location_apprehension, "OTF") ~ "Interior",
+           str_detect(method_location_apprehension, "TCB") ~ "Interior",
+           str_detect(method_location_apprehension, "ISP") ~ "Border",
+           str_detect(method_location_apprehension, "L") ~ "Interior",
+           str_detect(method_location_apprehension, "REP") ~ "Other",
+           str_detect(method_location_apprehension, "O|0") ~ "Other",
+           is.na(method_location_apprehension) ~ NA_character_,
+            TRUE ~ NA_character_))
+
+```
+
+```{r filter_dataset}
+
+i213 <- i213 %>% 
+  filter(office %in% c("SEA", "POO"))
+
+```
+
+```{r mentions_by_method}
+
+mentions_by_method <- i213 %>% 
+  dplyr::select('method_short', starts_with('mentions')) %>% 
+  group_by(method_short) %>% 
+  summarise(across(where(is.logical), mean))
+
+mentions_by_method %>% 
+  pivot_longer(cols=-c('method_short')) %>% 
+  filter(method_short %in% c('NCA', 'REP')) %>% 
+  ggplot(aes(y = name, x=value, fill=method_short)) +
+  geom_col() +
+  facet_wrap(~method_short)
+
+mentions_by_method %>% 
+  pivot_longer(cols=-c('method_short')) %>% 
+  filter(method_short %in% c('NCA', 'L')) %>% 
+  ggplot(aes(y = name, x=value, fill=method_short)) +
+  geom_col() +
+  facet_wrap(~method_short)
+
+mentions_by_method %>% 
+  pivot_longer(cols=-c('method_short')) %>% 
+  filter(method_short %in% c('NCA', 'CLC')) %>% 
+  ggplot(aes(y = name, x=value, fill=method_short)) +
+  geom_col() +
+  facet_wrap(~method_short)
+
+```
+
+```{r mentions_by_date}
+
+mentions_by_date <- i213 %>% 
+  dplyr::select('quarter', starts_with('mentions')) %>% 
+  group_by(quarter) %>% 
+  summarise(across(where(is.logical), mean))
+
+p1 <- mentions_by_date %>% 
+  filter(quarter >= 2019.1,
+         quarter <= 2021.2,
+         ) %>% 
+  pivot_longer(cols=-c('quarter')) %>% 
+  # filter(name %in% c('mentions_self_report', 'mentions_surveillance')) %>%
+  ggplot(aes(x = as.factor(quarter), y = value, color=name, group=name)) +
+  geom_line()
+
+ggplotly(p1)
+
+```
+
+```{r nca_mentions_by_date}
+
+method_mentions_by_date <- i213 %>% 
+  dplyr::select('quarter', 'method_short', starts_with('mentions')) %>% 
+  group_by(quarter, method_short) %>% 
+  summarise(across(where(is.logical), mean))
+
+p1 <- method_mentions_by_date %>% 
+  filter(quarter >= 2019.1,
+         quarter <= 2022.2,
+         ) %>% 
+  pivot_longer(cols=-c('quarter', 'method_short')) %>% 
+  filter(method_short == "NCA") %>%
+  ggplot(aes(x = as.factor(quarter), y = value, color=name, group=name)) +
+  geom_line()
+
+ggplotly(p1)
+
+```
+
+```{r date_versus_date_of_action}
+
+# These values have inconsistent format and are messy especially for second installment
+i213$date_of_action <- as.Date(i213$date_of_action, tryFormats=c("%m/%d/%y", "%m/%d/%Y"))
+
+i213 %>% 
+  dplyr::select(date, date_of_action, method_short) %>% 
+  pivot_longer(cols=-c(method_short)) %>% 
+  count(method_short, name, value) %>% 
+  filter(method_short == "NCA",
+         !is.na(value)) %>% 
+  ggplot(aes(x = value, y = n, color=name, group=name)) +
+  geom_line() +
+  facet_wrap(~method_short)
+
+
+i213 %>%
+  # filter(method_short == "NCA") %>% 
+  ggplot(aes(x = date, y = date_of_action, color = method_short)) +
+  geom_point()
+
+# Positive values = Form date fields later than date of action
+# Negative values = Form date fields earlier than date of action
+i213$date_diff <- i213$date - i213$date_of_action
+
+# Most categories 0/-1 median difference; "REP"/"O" 1 year lag most common
+i213 %>% 
+  group_by(method_short) %>% 
+  summarize(mean_date_diff = mean(date_diff, na.rm=TRUE),
+            med_date_diff = median(date_diff, na.rm=TRUE))
+
+# Note banding at +/- 1 year for most categories: annual check-ins?
+p1 <- i213 %>% 
+  dplyr::select(date, date_diff, method_short) %>% 
+  pivot_longer(cols=-c(date, method_short)) %>% 
+  filter(!is.na(method_short),
+         date >= '2019-01-01') %>% 
+  ggplot(aes(x = date, y = value, color = method_short)) +
+  geom_point()
+
+ggplotly(p1)
+
+```
+
+```{r lawsuit_compare_mentions}
+
+dat <- i213 %>% 
+  dplyr::select(lawsuit, starts_with('mentions')) %>% 
+  group_by(lawsuit) %>% 
+  summarise(across(where(is.logical), mean)) %>% 
+  pivot_longer(cols=-c(lawsuit)) %>% 
+  ungroup() %>% 
+  mutate(value = case_when(lawsuit == 1 ~ -value,
+         TRUE ~ value))
+
+dat_range <- range(dat$value)
+dat_range_breaks <- pretty(dat_range, 10)
+
+p1 <- dat %>% 
+    ggplot(aes(x = value, y = name, fill=as.factor(lawsuit))) +
+    geom_col() +
+    scale_x_continuous(
+      breaks = dat_range_breaks,
+      labels = function(x) scales::percent(abs(x))) +
+    scale_fill_discrete() +
+    labs(title = paste0("% form string matches by lawsuit"))
+
+p1
+```
+
+```{r lawsuit_compare_nca}
+
+dat <- i213 %>% 
+  dplyr::select(lawsuit, method_short, starts_with('mentions')) %>% 
+  group_by(lawsuit, method_short) %>% 
+  summarise(across(where(is.logical), mean)) %>% 
+  pivot_longer(cols=-c(lawsuit, method_short)) %>% 
+  ungroup() %>% 
+  mutate(value = case_when(lawsuit == 1 ~ -value,
+         TRUE ~ value))
+
+dat_range <- range(dat$value)
+dat_range_breaks <- pretty(dat_range, 10)
+
+method = "NCA"
+
+p1 <- dat %>% 
+    filter(method_short == method) %>% 
+    ggplot(aes(x = value, y = name, fill=as.factor(lawsuit))) +
+    geom_col() +
+    scale_x_continuous(
+      breaks = dat_range_breaks,
+      labels = function(x) scales::percent(abs(x))) +
+    scale_fill_discrete() +
+    labs(title = paste0(method, " % form string matches by lawsuit"))
+
+p1
+```
+
+
