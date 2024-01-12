@@ -368,6 +368,8 @@ Change in rank of most frequent `country_of_citizenship` values by quarter. Note
 
 ```{r country_rank}
 
+# https://www.r-bloggers.com/2018/04/bump-chart/
+
 my_theme <- function() {
   # Colors
   color.background = "white"
