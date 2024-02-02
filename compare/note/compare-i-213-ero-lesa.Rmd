@@ -1,5 +1,5 @@
 ---
-title: Comparison of I-213 collection with ICE ERO LESA aggregate statistics
+title: Comparison of I-213 collection with ICE ERO LESA and CBP aggregate statistics
 author:
 - "[Phil Neff](https://github.com/philneff)"
 date: 1 December, 2023
@@ -14,8 +14,8 @@ output:
 
 ```{r import_i213, message = FALSE, warning = FALSE}
 
-pacman::p_load(tidyverse, lubridate, here, skimr, yaml, ggplot2, ggalt, gplots,
-               sf, rnaturalearth, rnaturalearthdata, maps, tools, RColorBrewer
+pacman::p_load(tidyverse, lubridate, here, skimr, yaml, ggplot2, ggalt, gplots, plotly,
+               sf, rnaturalearth, rnaturalearthdata, maps, tools, RColorBrewer, zoo
                )
 
 inputfile <- here::here("compare/input/uw-chr-i213-public.csv.gz")
@@ -49,11 +49,7 @@ i213 <- i213 %>%
 
 i213$date <- as.Date(i213$date)
 i213$month <- as.Date(cut(i213$date, breaks='month'))
-
-i213 <- i213 %>% 
-  mutate(lawsuit = case_when(
-           str_detect(installment, "2023") ~ 2,
-            TRUE ~ 1))
+i213$year_mon <- as.yearmon(i213$date)
 
 i213$installment <- factor(i213$installment, levels = c("ICE 2020-05",
 "ICE 2020-06",
@@ -93,58 +89,6 @@ i213 <- i213 %>% mutate(cmplxn = case_when(
          cmplxn %in% good_values ~ cmplxn,
          is.na(cmplxn) ~ NA_character_,
          TRUE ~ "OTHER"))
-
-i213$office <- str_match(i213$location_code, "SEA|POO|BLW|SPW")
-
-i213 <- i213 %>% 
-  mutate(method_short = case_when(
-           str_detect(method_location_apprehension, "PB") ~ "PB",
-           str_detect(method_location_apprehension, "CFD") ~ "CFD",
-           str_detect(method_location_apprehension, "CST") ~ "CST",
-           str_detect(method_location_apprehension, "CLC") ~ "CLC",
-           str_detect(method_location_apprehension, "NCA") ~ "NCA",
-           str_detect(method_location_apprehension, "LEA") ~ "LEA",
-           str_detect(method_location_apprehension, "OA") ~ "OA",
-           str_detect(method_location_apprehension, "OTF") ~ "OTF",
-           str_detect(method_location_apprehension, "TCB") ~ "TCB",
-           str_detect(method_location_apprehension, "ISP") ~ "ISP",
-           str_detect(method_location_apprehension, "REP") ~ "REP",
-           str_detect(method_location_apprehension, "L") ~ "L",
-           str_detect(method_location_apprehension, "O|0") ~ "O",
-           is.na(method_location_apprehension) ~ NA_character_,
-            TRUE ~ NA_character_),
-         method_verbose = case_when(
-           str_detect(method_location_apprehension, "PB") ~ "Patrol Border",
-           str_detect(method_location_apprehension, "CFD") ~ "CAP Federal",
-           str_detect(method_location_apprehension, "CST") ~ "CAP State",
-           str_detect(method_location_apprehension, "CLC") ~ "CAP Local",
-           str_detect(method_location_apprehension, "NCA") ~ "Non-Custodial Arrest",
-           str_detect(method_location_apprehension, "LEA") ~ "Law Enforcement Assist",
-           str_detect(method_location_apprehension, "OA") ~ "Other Agency",
-           str_detect(method_location_apprehension, "OTF") ~ "Task Force",
-           str_detect(method_location_apprehension, "TCB") ~ "Transportation Check",
-           str_detect(method_location_apprehension, "ISP") ~ "Inspection",
-           str_detect(method_location_apprehension, "REP") ~ "Reprocessed",
-           str_detect(method_location_apprehension, "L") ~ "Located",
-           str_detect(method_location_apprehension, "O|0") ~ "Other",
-           is.na(method_location_apprehension) ~ NA_character_,
-            TRUE ~ NA_character_),
-         method_int_border = case_when(
-           str_detect(method_location_apprehension, "PB") ~ "Border",
-           str_detect(method_location_apprehension, "CFD") ~ "Interior",
-           str_detect(method_location_apprehension, "CST") ~ "Interior",
-           str_detect(method_location_apprehension, "CLC") ~ "Interior",
-           str_detect(method_location_apprehension, "NCA") ~ "Interior",
-           str_detect(method_location_apprehension, "LEA") ~ "Interior",
-           str_detect(method_location_apprehension, "OA") ~ "Interior",
-           str_detect(method_location_apprehension, "OTF") ~ "Interior",
-           str_detect(method_location_apprehension, "TCB") ~ "Interior",
-           str_detect(method_location_apprehension, "ISP") ~ "Border",
-           str_detect(method_location_apprehension, "L") ~ "Interior",
-           str_detect(method_location_apprehension, "REP") ~ "Other",
-           str_detect(method_location_apprehension, "O|0") ~ "Other",
-           is.na(method_location_apprehension) ~ NA_character_,
-            TRUE ~ NA_character_))
 ```
 
 
@@ -185,8 +129,144 @@ erolesa <- erolesa %>%
 
 erolesa$date <- as.Date(erolesa$arrest_date)
 erolesa$month <- as.Date(cut(erolesa$date, breaks='month'))
+erolesa$year_mon <- as.yearmon(erolesa$date)
 
 ```
+
+```{r import_cbp}
+
+cbp <- read_delim(here('compare', 'input', 'cbp-nationwide-encounters-fy20-fy23-aor.csv'), delim=',')
+
+names(cbp) %<>%
+  str_replace_all(" \\s*\\([^\\)]+\\)", "") %>% 
+  str_replace_all("\\s","_") %>%
+  tolower()
+
+month_abb_fy <- c("Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul","Aug", "Sep")
+
+cbp <- cbp %>% 
+  mutate(month_abb = ordered(str_to_title(month), month_abb_fy),
+         month = match(month_abb, month.abb),
+         calendar_year = case_when(month >= 10 ~ as.numeric(fiscal_year) -1,
+                                   TRUE ~ as.numeric(fiscal_year)),
+         fiscal_year = factor(fiscal_year))
+
+cbp$year_mon <- as.yearmon(paste(cbp$calendar_year, cbp$month, sep='-'))
+cbp$fy_quarter <- quarter(cbp$year_mon, fiscal_start=10, type="year.quarter")
+
+cbp <- cbp %>% 
+  filter(aor %in% c("BLW", "SPW", "Seattle", "Portland"))
+
+```
+
+```{r join_count}
+
+i213_monthly <- i213 %>% 
+  group_by(year_mon) %>% 
+  summarize(n = n() )
+
+i213_monthly$source <- "I-213s (all)"
+
+erolesa_monthly <- erolesa %>% 
+  group_by(year_mon) %>% 
+  summarize(n = sum(n) )
+
+erolesa_monthly$source <- "ICE ERO LESA"
+
+cbp_monthly <- cbp %>% 
+  filter(component != "Office of Field Operations") %>% 
+  group_by(year_mon) %>% 
+  summarize(n = sum(encounter_count))
+
+cbp_monthly$source <- "CBP (USBP)"
+
+dat <- rbind(i213_monthly, erolesa_monthly, cbp_monthly)
+
+p1 <- dat %>% 
+  ggplot(aes(x=year_mon, y=n, color=source)) +
+  geom_line()
+
+ggplotly(p1)
+
+```
+
+```{r compare_all_subsets, message=FALSE, warning=FALSE}
+
+i213_monthly <- i213 %>% 
+  group_by(year_mon, office) %>% 
+  summarize(n = n() ) %>% 
+  rename(source = office) %>% 
+  mutate(source = paste0("I-213 ", source))
+
+erolesa_monthly <- erolesa %>% 
+  group_by(year_mon) %>% 
+  summarize(n = sum(n) ) %>% 
+  mutate(source = "ICE ERO LESA")
+
+cbp_monthly <- cbp %>% 
+  group_by(year_mon, aor) %>% 
+  summarize(n = sum(encounter_count)) %>% 
+  rename(source = aor) %>% 
+  mutate(source = paste0("CBP ", source))
+
+dat <- rbind(i213_monthly, erolesa_monthly, cbp_monthly)
+
+p0 <- dat %>%
+  ggplot(aes(x=year_mon, y=n, color=source)) +
+  geom_line()
+
+p0
+
+```
+
+```{r compare_USBP_sector_subsets, message=FALSE, warning=FALSE}
+
+p1 <- dat %>% 
+  filter(year_mon >= "2019-01-1",
+         year_mon <= "2021-09-30",
+         source %in% c("CBP BLW", "I-213 BLW")) %>% 
+  ggplot(aes(x=year_mon, y=n, color=source)) +
+  geom_line()
+
+p1
+
+p2 <- dat %>% 
+  filter(year_mon >= "2019-01-1",
+         year_mon <= "2021-09-30",
+         source %in% c("CBP SPW", "I-213 SPW")) %>% 
+  ggplot(aes(x=year_mon, y=n, color=source)) +
+  geom_line()
+
+p2
+
+```
+
+```{r compare_ICE_subsets, message=FALSE, warning=FALSE}
+
+i213_monthly <- i213 %>% 
+  filter(office %in% c("SEA", "POO")) %>% 
+  group_by(year_mon) %>% 
+  summarize(n = n() ) %>% 
+  mutate(source = "I-213s (SEA + POO)")
+
+erolesa_monthly <- erolesa %>% 
+  group_by(year_mon) %>% 
+  summarize(n = sum(n) ) %>% 
+  mutate(source = "ICE ERO LESA")
+
+dat <- rbind(i213_monthly, erolesa_monthly)
+
+p3 <- dat %>% 
+  filter(year_mon >= "2019-01-1",
+         year_mon <= "2021-09-30") %>% 
+  ggplot(aes(x=year_mon, y=n, color=source)) +
+  geom_line()
+
+p3
+
+```
+
+
 
 
 ```{r join_method}
@@ -198,12 +278,12 @@ i213_monthly <- i213 %>%
   count(month, method_short) 
 
 i213_seapoo_monthly <- i213 %>% 
-  filter(office %in% c('SEA', 'POO')) %>% 
+  filter(!office %in% c('BLW', 'SPW')) %>% 
   count(month, method_short) 
 
 i213_daily$source <- "I-213s"
 i213_monthly$source <- "I-213s"
-i213_seapoo_monthly$source <- "I-213s (SEA/POO)"
+i213_seapoo_monthly$source <- "I-213s !(BLW/SPW)"
 
 erolesa$source <- "ICE ERO LESA"
 
