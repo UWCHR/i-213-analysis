@@ -157,6 +157,14 @@ cbp$fy_quarter <- quarter(cbp$year_mon, fiscal_start=10, type="year.quarter")
 cbp <- cbp %>% 
   filter(aor %in% c("BLW", "SPW", "Seattle", "Portland"))
 
+usbp <- read_delim(here('compare', 'input', 'usbp_blw_spw_fy2000-fy2023.csv.gz'), delim='|')
+
+usbp <- usbp %>% 
+  dplyr::select(-starts_with('diff')) %>% 
+  pivot_longer(cols=-c("cy", "fy", "month")) %>% 
+  mutate(year_mon = as.yearmon(paste(cy, month, sep='-'))) %>% 
+  filter(name %in% c('blw', 'spw'))
+
 ```
 
 ```{r join_count}
@@ -173,17 +181,41 @@ erolesa_monthly <- erolesa %>%
 
 erolesa_monthly$source <- "ICE ERO LESA"
 
-cbp_monthly <- cbp %>% 
-  filter(component != "Office of Field Operations") %>% 
+# cbp_monthly <- cbp %>% 
+#   filter(component != "Office of Field Operations") %>% 
+#   group_by(year_mon) %>% 
+#   summarize(n = sum(encounter_count))
+# 
+# cbp_monthly$source <- "CBP (USBP)"
+
+usbp_monthly <- usbp %>% 
   group_by(year_mon) %>% 
-  summarize(n = sum(encounter_count))
+  summarize(n = sum(value))
 
-cbp_monthly$source <- "CBP (USBP)"
+usbp_monthly$source <- "USBP (BLW + SPW)"
 
-dat <- rbind(i213_monthly, erolesa_monthly, cbp_monthly)
+dat <- rbind(i213_monthly, erolesa_monthly, usbp_monthly)
 
 p1 <- dat %>% 
   ggplot(aes(x=year_mon, y=n, color=source)) +
+  geom_line()
+
+ggplotly(p1)
+
+```
+
+```{r compare_sources}
+
+dat_wide <- dat %>% 
+  pivot_wider(names_from=source, values_from=n)
+
+dat_wide$"I-213s + USBP" = dat_wide$"I-213s (all)" + dat_wide$"USBP (BLW + SPW)"
+
+dat <- dat_wide %>% 
+  pivot_longer(cols=-c('year_mon'))
+
+p1 <- dat %>% 
+  ggplot(aes(x=year_mon, y=value, color=name)) +
   geom_line()
 
 ggplotly(p1)
@@ -243,18 +275,24 @@ p2
 
 ```{r compare_ICE_subsets, message=FALSE, warning=FALSE}
 
-i213_monthly <- i213 %>% 
+i213_monthly_sea_poo <- i213 %>% 
   filter(office %in% c("SEA", "POO")) %>% 
   group_by(year_mon) %>% 
   summarize(n = n() ) %>% 
   mutate(source = "I-213s (SEA + POO)")
+
+i213_monthly_spw_poo <- i213 %>% 
+  filter(office %in% c("SPW", "BLW")) %>% 
+  group_by(year_mon) %>% 
+  summarize(n = n() ) %>% 
+  mutate(source = "I-213s (SPW + BLW)")
 
 erolesa_monthly <- erolesa %>% 
   group_by(year_mon) %>% 
   summarize(n = sum(n) ) %>% 
   mutate(source = "ICE ERO LESA")
 
-dat <- rbind(i213_monthly, erolesa_monthly)
+dat <- rbind(i213_monthly_sea_poo, i213_monthly_spw_poo, erolesa_monthly)
 
 p3 <- dat %>% 
   filter(year_mon >= "2019-01-1",
