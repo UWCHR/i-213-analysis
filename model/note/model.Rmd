@@ -1,6 +1,12 @@
 ---
 title: "I-213 Classification Memo"
-output: html_notebook
+output:
+    html_document:
+        html_preview: true
+        toc: true
+        toc_depth: 3
+        toc_float: true
+        code_folding: hide
 ---
 
 
@@ -207,7 +213,7 @@ Second, we analyze correlations between country of origin, sex, and age with con
 ```{r}
 top <- i213 %>% 
   count(country_of_citizenship, sort = TRUE) %>%
-  top_n(5, n) %>%
+  top_n(10, n) %>%
   mutate(country=country_of_citizenship) %>% 
   select(country) 
 
@@ -217,17 +223,16 @@ i213 <- i213 %>%
     TRUE ~ "ALL OTHERS")) %>% 
   mutate(age_group=cut(age,breaks=c(0, 18, 25, 40, 60, Inf), right=FALSE))
     
-
-ggplot(i213, aes(x=cca_label, fill=cca_label)) +
-  geom_bar(position="dodge") +
-  facet_wrap(~country_short) +
-  theme(axis.text.x=element_blank(),
-        axis.ticks.x=element_blank()) + 
-  labs(title="Contemporary Community Arrests by Country of Origin",
-       subtitle="Out of 'NCA' and 'O' Records",
-       x="",
-       y="Count",
-       fill="Contemporary Community Arrest")
+# ggplot(i213, aes(x=cca_label, fill=cca_label)) +
+#   geom_bar(position="dodge") +
+#   facet_wrap(~country_short) +
+#   theme(axis.text.x=element_blank(),
+#         axis.ticks.x=element_blank()) + 
+#   labs(title="Contemporary Community Arrests by Country of Origin",
+#        subtitle="Out of 'NCA' and 'O' Records",
+#        x="",
+#        y="Count",
+#        fill="Contemporary Community Arrest")
 
 ggplot(i213, aes(x=sex, fill=cca_label)) +
   geom_bar(position="dodge") +
@@ -245,6 +250,16 @@ ggplot(i213, aes(x=age_group, fill=cca_label)) +
        x="Age",
        y="Count",
        fill="Contemporary Community Arrest")
+
+i213 %>% count(lawsuit.x, cca_label, country_short) %>% 
+  ggplot(aes(x=cca_label, y=n, fill=country_short)) +
+  geom_col(position="stack") +
+  facet_wrap(~lawsuit.x) +
+  labs(title="Contemporary Community Arrests by Country of Origin",
+       subtitle="Out of 'NCA' and 'O' Records",
+       x="Contemporary Community Arrest",
+       y="Count",
+       fill="Country of Origin")
 ```
 
 ### Geography
@@ -264,6 +279,12 @@ map <- i213 %>%
 map <- st_as_sf(map, coords = c("lon", "lat"),
                      crs = 4326, agr = "constant")
 
+map_true <- st_as_sf(map %>% filter(cca_label==TRUE), coords = c("lon", "lat"),
+                     crs = 4326, agr = "constant")
+
+map_false <- st_as_sf(map %>% filter(cca_label==FALSE), coords = c("lon", "lat"),
+                     crs = 4326, agr = "constant")
+
 ggplot(data=world) +
     geom_sf() +
     geom_sf(data=states, fill=NA) +
@@ -274,8 +295,30 @@ ggplot(data=world) +
          size="Number of Arrests",
          fill="Contemporary Community Arrest")
 
-ggplot(i213, aes(x=office, fill=cca_label)) +
-  geom_bar(position="dodge") +
+ggplot(data=world) +
+    geom_sf() +
+    geom_sf(data=states, fill=NA) +
+    geom_sf(data=map_true, aes(size=n, fill=cca_label), shape=21, alpha=.5) +
+    pnw_coords +
+    labs(title="Contemporary Community Arrests by 'at_near' Latitude/Longitude",
+         subtitle="Out of 'NCA' and 'O' Records",
+         size="Number of Arrests",
+         fill="Contemporary Community Arrest")
+
+ggplot(data=world) +
+    geom_sf() +
+    geom_sf(data=states, fill=NA) +
+    geom_sf(data=map_false, aes(size=n, fill=cca_label), shape=21, alpha=.5) +
+    pnw_coords +
+    labs(title="Contemporary Community Arrests by 'at_near' Latitude/Longitude",
+         subtitle="Out of 'NCA' and 'O' Records",
+         size="Number of Arrests",
+         fill="Contemporary Community Arrest")
+
+i213 %>% count(office, lawsuit.x, cca_label) %>% 
+  ggplot(aes(x=office, y=n, fill=cca_label)) +
+  geom_col(position="dodge") +
+  facet_wrap(~lawsuit.x) +
   labs(title="Contemporary Community Arrests by ICE Office",
        subtitle="Out of 'NCA' and 'O' Records",
        x="ICE Office",
