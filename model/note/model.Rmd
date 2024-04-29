@@ -1,5 +1,8 @@
 ---
 title: "I-213 Classification Memo"
+author:
+- "[Andrew Shaw](https://github.com/philneff)"
+date: 29 April, 2024
 output:
     html_document:
         html_preview: true
@@ -11,7 +14,7 @@ output:
 
 
 ```{r}
-pacman::p_load(tidyverse, sf, rnaturalearth, rnaturalearthdata, maps, tools)
+pacman::p_load(tidyverse, sf, rnaturalearth, rnaturalearthdata, maps, tools, plotly)
 
 cca <- read_csv("../input/model_applied.csv",
                 col_names=TRUE,
@@ -26,10 +29,13 @@ cca_hand <- cca %>%
 cca_model <- cca %>% 
   filter(is_hand_labeled==FALSE)
 
-inputfile <- here::here("import/input/uw-chr-i213-public.csv.gz")
+subtitle <- "For All Arrests Records with Method 'NCA' or 'O'"
+
+inputfile <- here::here("./import/input/uw-chr-i213-public.csv.gz")
 
 i213 <- read_delim(
-    inputfile, delim = "|", 
+    inputfile,
+    delim = "|", 
     col_types = cols(
         source                       = col_character(),
         sex                          = col_character(),
@@ -51,7 +57,7 @@ i213 <- read_delim(
 # Background
 As part of its “Human Rights At Home” and “Immigrant Rights Observatory” research initiatives, the University of Washington Center for Human Rights (UWCHR) obtained a collection I-213 “Record of Deportable/Inadmissible Alien” forms via Freedom of Information Act (FOIA) requests to the US Department of Homeland Security (DHS). The UWCHR first obtained a collection of 3887 I-213 records from Immigration and Customs Enforcement (ICE) and Customs and Border Patrol (CBP) through a lawsuit against DHS in 2020, and later obtained a collection of 2895 additional records through a lawsuit against ICE in 2021.
 
-While analyzing trends in I-213 records obtained across both lawsuits, the UWCHR noticed a significant increase in arrest records categorized as Non-Custodial Arrests (NCA). Traditionally, agencies had used the NCA categorization to refer to arrests that were carried out as a result of targeted surveillance efforts by agents. An emergent concern was therefore that the quantitative increase in NCA arrests over time might reflect an increase in community surveillance efforts, raising concerns of privacy and human rights. Further inspection, however, revealed that a significant number of NCA arrests from lawsuit 2 reflected incidents where immigrants were first encountered by CBP along the US Border before being instructed to report to local ICE offices in the Pacific Northwest. While such encounters doubtless raise important human rights concerns as well, it was important for UWCHR to distinguish between traditional “contemporary community arrests” and the new class of NCA arrests to better understand evolving trends in immigration enforcement. Given the large number of I-213 records in UWCHR’s possession, it became necessary to use machine learning techniques to efficiently process the large collection of records. In this document, we outline the methodology, accuracy, and results of this machine learning research effort.
+While analyzing trends in I-213 records obtained across both lawsuits, the UWCHR noticed a significant increase in arrest records categorized as Non-Custodial Arrests (NCA). Traditionally, agencies had used the NCA categorization to refer to arrests that were carried out as a result of targeted surveillance efforts by agents. An emergent concern was therefore that the quantitative increase in NCA arrests over time might reflect an increase in community surveillance efforts, raising concerns of privacy and human rights. Further inspection, however, revealed that a significant number of NCA arrests from lawsuit 2 reflected incidents where immigrants were first encountered by CBP along the US Border before being instructed to rep- ort to local ICE offices in the Pacific Northwest. While such encounters doubtless raise important human rights concerns as well, it was important for UWCHR to distinguish between traditional “contemporary community arrests” and the new class of NCA arrests to better understand evolving trends in immigration enforcement. Given the large number of I-213 records in UWCHR’s possession, it became necessary to use machine learning techniques to efficiently process the large collection of records. In this document, we outline the methodology, accuracy, and results of this machine learning research effort.
 
 # Methdology
 ## Taxonomy
@@ -112,21 +118,23 @@ ggplot(train_data, aes(x=epoch, group=1)) +
        color="")
 ```
 
-The model then achieves the following performance on the test data:
-
 ```{r}
 test_results <- log %>% 
   filter(col %in% c("test_acc", "pos_precision", "neg_precision",
                     "pos_recall", "neg_recall", "pos_f1", "neg_f1")) %>%
   mutate(value=as.numeric(value)) %>% 
-  pivot_wider(names_from=col, values_from=value) %>% 
-  rename(c("Accuracy"="test_acc", "Positive Precision"="pos_precision",
-           "Negative Precision"="neg_precision", "Positive Recall"="pos_recall",
-           "Negative Recall"="neg_recall", "Positive F1"="pos_f1",
-           "Negative F1"="neg_f1"))
-
-test_results
+  pivot_wider(names_from=col, values_from=value)
 ```
+
+The model then achieves the following performance on the test data:
+
+- Test Accuracy: `r test_results$test_acc`
+- Positive Precision: `r test_results$pos_precision`
+- Negative Precision: `r test_results$neg_precision`
+- Positive Recall: `r test_results$pos_recall`
+- Negative Recall: `r test_results$neg_recall`
+- Positive F1: `r test_results $pos_f1`
+- Negative F1: `r test_results $neg_f1`
 
 The relatively low precision of positive (contemporary community arrest) records suggests a high degree of false positives. We therefore believe that the our results are likely a slight overcount of the true number of contemporary community arrests.
 
@@ -134,25 +142,23 @@ The relatively low precision of positive (contemporary community arrest) records
 We apply the trained model to the remainder of the non-hand-coded NCA and O records. The combination of hand-coded and machine-coded results reveals that the proportion of non-contemporary community arrests performed by ICE out of all NCA and O arrests has increased dramatically from lawsuit 1 to lawsuit 2:
 
 ```{r}
-cca_grouped <- cca %>%
-  count(lawsuit, method_short, cca_label, name="count")
+cca_counts <- cca %>% count(lawsuit, method_short, cca_label, name="count")
 
-cca_total <- cca %>%
-  count(lawsuit, cca_label, name="count")
-cca_total$method_short <- "All"
+cca_counts_all <- cca %>% count(lawsuit, cca_label, name="count") %>% 
+                          mutate(method_short="All")
 
-cca_agg <- bind_rows(cca_grouped, cca_total) %>% 
-  arrange(lawsuit)
+cca_counts <- bind_rows(cca_counts, cca_counts_all) %>% 
+  arrange(lawsuit, method_short, cca_label)
 
-cca_agg
+cca_counts
 ```
 
 ```{r}
-ggplot(cca_agg, aes(cca_label, count, fill=lawsuit)) +
+ggplot(cca_counts, aes(cca_label, count, fill=lawsuit)) +
   geom_col(position="dodge") +
   facet_wrap(~method_short) +
   labs(title="Categorization of Records: Lawsuit 1 vs. Lawsuit 2",
-       subtitle="Out of 'NCA' and 'O' Records",
+       subtitle=subtitle,
        x="Contemporary Community Arrest",
        y="Count",
        fill="Lawsuit")
@@ -161,13 +167,20 @@ ggplot(cca_agg, aes(cca_label, count, fill=lawsuit)) +
 Based on these results, we do not believe that the increase in NCA arrest records reflects an increase in contemporary community arrests performed by ICE, but rather a shift in how ICE is categorizing arrest records.
 
 ## Correlated Variables
-We then join our results with our other I-213 analysis data to investigate any possible correlations between contemporary community arrests and other variables.
+We then join our results with our other I-213 analysis data to investigate any possible correlations between contemporary community arrests and other variables. Since the lawsuit associated with each record acts as a proxy for time, we also segment by lawsuit when appropriate.
 
 ### Keyword Mentions
 First, we analyze correlations between keyword mentions and contemporary community arrests. In general, we find that mentions of "border patrol" and "self-report" are correlated with non-contemporary community arrests, and that mentions of "surveillance," "courthouse," and "police" are correlated with contemporary community arrests. We also find that out of all ICE offices, the Seattle office performs the least proportion of contemporary community arrests. These results suggest that police may still be involved with ICE in carrying out arrests and point to the need for continued scrutiny of police-ICE interactions.
 
 ```{r}
-i213 <- inner_join(i213, cca, by="file_hash")
+i213 <- inner_join(i213, cca %>% select(file_hash,
+                                        narrative_length,
+                                        hand_label,
+                                        model_label,
+                                        is_hand_labeled,
+                                        cca_label),
+                   by="file_hash") %>% 
+  mutate(lawsuit=paste("Lawsuit", lawsuit)) # mutate for facet wrap formatting
 
 mentions_bp <- i213 %>% 
   mutate(keyword="'Border Patrol'") %>% 
@@ -201,14 +214,14 @@ ggplot(mentions, aes(x=mentions, fill=cca_label)) +
   facet_wrap(~keyword) +
   geom_bar(position="dodge") +
   labs(title="Contemporary Community Arrests by Keyword Mentions",
-       subtitle="Out of 'NCA' and 'O' Records",
+       subtitle=subtitle,
        x="Keyword Mentioned",
        y="Count",
        fill="Contemporary Community Arrest")
 ```
 
 ### Country of Origin, Sex, Age
-Second, we analyze correlations between country of origin, sex, and age with contemporary community arrests. Based on our analysis, immigrants from Mexico, males, and those in the age range of 40 to 60 years are are more likely to be subject to contemporary community arrests.
+Second, we analyze correlations between country of origin, sex, and age with contemporary community arrests. Based on our analysis, males, those in the age range of 25 to 40 years, and immigrants from Mexico are are more likely to be subject to contemporary community arrests. We also observe an overall increase in diversity of country of origin for arrest records from lawsuit 2, especially for non-contemporary community arrests.
 
 ```{r}
 top <- i213 %>% 
@@ -222,48 +235,40 @@ i213 <- i213 %>%
     country_of_citizenship %in% top$country ~ country_of_citizenship,
     TRUE ~ "ALL OTHERS")) %>% 
   mutate(age_group=cut(age,breaks=c(0, 18, 25, 40, 60, Inf), right=FALSE))
-    
-# ggplot(i213, aes(x=cca_label, fill=cca_label)) +
-#   geom_bar(position="dodge") +
-#   facet_wrap(~country_short) +
-#   theme(axis.text.x=element_blank(),
-#         axis.ticks.x=element_blank()) + 
-#   labs(title="Contemporary Community Arrests by Country of Origin",
-#        subtitle="Out of 'NCA' and 'O' Records",
-#        x="",
-#        y="Count",
-#        fill="Contemporary Community Arrest")
 
-ggplot(i213, aes(x=sex, fill=cca_label)) +
-  geom_bar(position="dodge") +
+i213 %>% count(lawsuit, cca_label, sex) %>% 
+  ggplot(aes(x=cca_label, y=n, fill=sex)) +
+  geom_col(position="stack") +
+  facet_wrap(~lawsuit) +
   labs(title="Contemporary Community Arrests by Sex",
-       subtitle="Out of 'NCA' and 'O' Records",
-       x="Sex",
+       subtitle=subtitle,
+       x="Contemporary Community Arrest",
        y="Count",
-       fill="Contemporary Community Arrest")
+       fill="Sex")
 
-
-ggplot(i213, aes(x=age_group, fill=cca_label)) +
-  geom_bar(position="dodge") +
+i213 %>% count(lawsuit, cca_label, age_group) %>% 
+  ggplot(aes(x=cca_label, y=n, fill=age_group)) +
+  geom_col(position="stack") +
+  facet_wrap(~lawsuit) +
   labs(title="Contemporary Community Arrests by Age",
-       subtitle="Out of 'NCA' and 'O' Records",
-       x="Age",
+       subtitle=subtitle,
+       x="Contemporary Community Arrest",
        y="Count",
-       fill="Contemporary Community Arrest")
+       fill="Age")
 
-i213 %>% count(lawsuit.x, cca_label, country_short) %>% 
+i213 %>% count(lawsuit, cca_label, country_short) %>% 
   ggplot(aes(x=cca_label, y=n, fill=country_short)) +
   geom_col(position="stack") +
-  facet_wrap(~lawsuit.x) +
+  facet_wrap(~lawsuit) +
   labs(title="Contemporary Community Arrests by Country of Origin",
-       subtitle="Out of 'NCA' and 'O' Records",
+       subtitle=subtitle,
        x="Contemporary Community Arrest",
        y="Count",
        fill="Country of Origin")
 ```
 
 ### Geography
-Third, we analyze correlations between geographical location and contemporary community arrests. In general, we find that the Seattle office performs the lowest proportion of contemporary community arrests out of ICE offices in the Pacific Northwest.
+Third, we analyze correlations between geographical location and contemporary community arrests. In general, we find that the Seattle office performs the lowest proportion of contemporary community arrests out of ICE offices in the Pacific Northwest. We also observe a significant decrease in contemporary community arrests from Lawsuit 1 to Lawsuit 2.
 
 ```{r}
 world <- ne_countries(scale = "medium", returnclass = "sf")
@@ -279,48 +284,24 @@ map <- i213 %>%
 map <- st_as_sf(map, coords = c("lon", "lat"),
                      crs = 4326, agr = "constant")
 
-map_true <- st_as_sf(map %>% filter(cca_label==TRUE), coords = c("lon", "lat"),
-                     crs = 4326, agr = "constant")
-
-map_false <- st_as_sf(map %>% filter(cca_label==FALSE), coords = c("lon", "lat"),
-                     crs = 4326, agr = "constant")
-
-ggplot(data=world) +
+map_plot <- ggplot(data=world) +
     geom_sf() +
     geom_sf(data=states, fill=NA) +
-    geom_sf(data=map, aes(size=n, fill=cca_label), shape=21, alpha=.5) +
+    geom_sf(data=map, aes(size=n, fill=cca_label), shape=21, alpha=.5, show.legend=FALSE) +
     pnw_coords +
     labs(title="Contemporary Community Arrests by 'at_near' Latitude/Longitude",
-         subtitle="Out of 'NCA' and 'O' Records",
+         subtitle=subtitle,
          size="Number of Arrests",
          fill="Contemporary Community Arrest")
 
-ggplot(data=world) +
-    geom_sf() +
-    geom_sf(data=states, fill=NA) +
-    geom_sf(data=map_true, aes(size=n, fill=cca_label), shape=21, alpha=.5) +
-    pnw_coords +
-    labs(title="Contemporary Community Arrests by 'at_near' Latitude/Longitude",
-         subtitle="Out of 'NCA' and 'O' Records",
-         size="Number of Arrests",
-         fill="Contemporary Community Arrest")
+ggplotly(map_plot)
 
-ggplot(data=world) +
-    geom_sf() +
-    geom_sf(data=states, fill=NA) +
-    geom_sf(data=map_false, aes(size=n, fill=cca_label), shape=21, alpha=.5) +
-    pnw_coords +
-    labs(title="Contemporary Community Arrests by 'at_near' Latitude/Longitude",
-         subtitle="Out of 'NCA' and 'O' Records",
-         size="Number of Arrests",
-         fill="Contemporary Community Arrest")
-
-i213 %>% count(office, lawsuit.x, cca_label) %>% 
+i213 %>% count(office, lawsuit, cca_label) %>% 
   ggplot(aes(x=office, y=n, fill=cca_label)) +
   geom_col(position="dodge") +
-  facet_wrap(~lawsuit.x) +
+  facet_wrap(~lawsuit) +
   labs(title="Contemporary Community Arrests by ICE Office",
-       subtitle="Out of 'NCA' and 'O' Records",
+       subtitle=subtitle,
        x="ICE Office",
        y="Count",
        fill="Contemporary Community Arrest")
@@ -330,8 +311,3 @@ i213 %>% count(office, lawsuit.x, cca_label) %>%
 Finally, we note several limitations of our approach for I-213 classification. One challenge has to do with the potential ambiguity presented by text narratives with respect to the “contemporary community arrest” categorization. During hand-labeling, for instance, we found several records that did not neatly fall into or outside this category. Where applicable, we recorded our decisions in such cases by updating our taxonomy, but given that we did not hand-label all records, the ambiguity of community arrests likely presents a source of potential error in the model results. This error is especially likely when the model is applied to records from the “O” (“Other”) category, because the category encompasses a wide range of potential text narratives that may or may not have been seen by the model during training.
 
 An additional limitation of our methodology is the use of optical character recognition (OCR) tools to digitize the text narratives from the I-213 records. We find that our OCR tools have difficulty interpreting redacted information, often adding meaningless text in the middle of a sentence. It is therefore unclear to what extent the classification model is able to adequately capture the meaning within the text narrative, limiting the accuracy of our classifications. Future research might also train an OCR model to better handle redacted information when digitizing text narratives.
-
-
-
-
-
