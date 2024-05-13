@@ -1,7 +1,7 @@
 ---
 title: "I-213 Classification Memo"
 author:
-- "[Andrew Shaw](https://github.com/philneff)"
+- "[Andrew Shaw](https://github.com/andrew-b-shaw)"
 date: 29 April, 2024
 output:
     html_document:
@@ -61,22 +61,24 @@ While analyzing trends in I-213 records obtained across both lawsuits, the UWCHR
 
 # Methdology
 ## Taxonomy
-We develop and use the following taxonomy of I-213 records to classify records as Contemporary Community Arrests by narrative:
+We develop and use the following taxonomy of I-213 records to classify records as contemporary community arrests (TRUE) or non-contemporary community arrests (FALSE) by narrative:
 
-1. At-large community arrests (TRUE)
-    a. Arrests in public settings
-    b. Arrests upon local/county jail release
-    c. Arrests while executing search warrants for criminal operations
-    d. Courthouse arrests
-2. Administrative arrests (FALSE)
-    a. Arrests at scheduled check-ins/self-report (FALSE)
+1. At-Large Community Arrests (TRUE)
+    a. Arrests in Public Settings
+    b. Arrests upon Local/County Jail Release
+    c. Arrests while Executing Search Warrants for Criminal Operations
+    d. Courthouse Arrests
+2. Arrests or Processing at Check-Ins/Self-Report (FALSE)
+    a. Arrests at Check-Ins/Self-Report
         i. Referred by Border Patrol
-    b. Processing at check-ins/self-report (FALSE)
+        ii. Not Referred by Border Patrol
+    b. Processing at Check-Ins/Self-Report
         i. Referred by Border Patrol
-    c. Other
+        ii. Not Referred by Border Patrol
 3. Miscategorized (FALSE):
-    a. Transfers of custody from State or Federal prison/USMS
-4. Unknown/insufficient narrative info (FALSE)
+    a. Transfers of Custody from State Prison/Federal Prison/USMS
+4. Unknown/Insufficient Narrative Info (FALSE)
+5. Other (FALSE)
 
 ## Datasets
 After further analyzing the I-213 records, we realized that the Other (O) category of I-213 arrest records also contained a significant proportion of arrests that would be characterized as contemporary community arrests under the taxonomy above. Therefore, here we include both NCA and O records in our datasets. Out of `r cca %>% nrow()` total NCA and O records with text narratives, `r cca %>% filter(method_short=="NCA") %>% nrow()` are categorized as NCA and `r cca %>% filter(method_short=="O") %>% nrow()` are categorized as O; `r cca %>% filter(lawsuit=="1") %>% nrow()` are from lawsuit 1 and `r cca %>% filter(lawsuit=="2") %>% nrow()` are from lawsuit 2.
